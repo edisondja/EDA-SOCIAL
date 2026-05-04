@@ -8,6 +8,24 @@ use Illuminate\Support\Facades\Schema;
 
 class PlatformConfig
 {
+    /**
+     * URL del logo por defecto (mismo tamaño de diseño que .brand-logo: 230×50).
+     */
+    public static function defaultLogoAssetUrl(): string
+    {
+        return asset('images/default-logo.svg');
+    }
+
+    /**
+     * Logo configurado en plataforma, o el recurso por defecto EDA-SOCIAL si no hay ninguno.
+     */
+    public static function resolvedLogoUrl(): string
+    {
+        $url = self::get('logo_url');
+
+        return ($url !== null && $url !== '') ? $url : self::defaultLogoAssetUrl();
+    }
+
     public static function get(string $key, $default = null)
     {
         try {

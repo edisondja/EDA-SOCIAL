@@ -39,7 +39,7 @@
             <nav class="menu-actions" aria-label="Principal">
                 <a href="{{ route('explore.index') }}" class="btn-primary nav-menu-btn {{ request()->routeIs('explore.index') ? 'blade-nav-active' : '' }}">Inicio</a>
                 @auth
-                    <a href="{{ route('publish.create') }}" class="btn-primary nav-menu-btn {{ request()->routeIs('publish.*') ? 'blade-nav-active' : '' }}">Publicar</a>
+                    <a href="{{ route('publish.create') }}" class="btn-primary nav-menu-btn js-open-publish-modal">Publicar</a>
                     <a href="{{ route('account.show') }}" class="btn-primary nav-menu-btn {{ request()->routeIs('account.*') ? 'blade-nav-active' : '' }}">Mi cuenta</a>
                     @if(in_array(optional(auth()->user()->role)->name, ['admin', 'moderator'], true))
                         <a href="{{ route('admin.panel', ['section' => 'seo']) }}" class="btn-primary nav-menu-btn {{ request()->is('admin*') ? 'blade-nav-active' : '' }}">Administración</a>
@@ -68,6 +68,9 @@
 
     @yield('content')
 </div>
+@auth
+    @include('web.partials.publish-modal')
+@endauth
 <script>
 (function () {
     var toggle = document.getElementById('blade-topbar-menu-toggle');
@@ -112,5 +115,173 @@
     });
 })();
 </script>
+@auth
+<script>
+(function () {
+    var root = document.getElementById('blade-publish-modal');
+    var backdrop = document.getElementById('blade-publish-modal-backdrop');
+    var closeBtn = document.getElementById('blade-publish-modal-close');
+    var form = document.getElementById('blade-publish-modal-form');
+    var sheet = document.getElementById('blade-topbar-menu-sheet');
+    var toggle = document.getElementById('blade-topbar-menu-toggle');
+    var bars = toggle ? toggle.querySelector('.topbar-menu-toggle-bars') : null;
+    var menuBackdrop = document.getElementById('blade-topbar-menu-backdrop');
+    var mediaInput = document.getElementById('blade-publish-media');
+    var previewBox = document.getElementById('blade-publish-media-preview');
+    var previewHint = document.getElementById('blade-publish-media-preview-hint');
+    var previewUrls = [];
+    if (!root || !backdrop || !closeBtn) return;
+
+    function revokeAllPreviewUrls() {
+        previewUrls.forEach(function (u) {
+            try {
+                URL.revokeObjectURL(u);
+            } catch (e) {}
+        });
+        previewUrls = [];
+    }
+
+    function clearPublishPreview() {
+        revokeAllPreviewUrls();
+        if (previewBox) {
+            previewBox.innerHTML = '';
+            previewBox.hidden = true;
+        }
+        if (previewHint) {
+            previewHint.hidden = true;
+        }
+    }
+
+    function inferMediaKind(file) {
+        var t = (file.type || '').toLowerCase();
+        if (t.indexOf('image/') === 0) {
+            return 'image';
+        }
+        if (t.indexOf('video/') === 0) {
+            return 'video';
+        }
+        var n = (file.name || '').toLowerCase();
+        if (/\.(jpe?g|png|gif|webp|bmp|svg)$/.test(n)) {
+            return 'image';
+        }
+        if (/\.(mp4|webm|mov|mkv|m4v|avi|ogv)$/.test(n)) {
+            return 'video';
+        }
+        return 'other';
+    }
+
+    function buildPublishPreview(files) {
+        clearPublishPreview();
+        if (!previewBox || !files || !files.length) {
+            return;
+        }
+        previewBox.hidden = false;
+        if (previewHint) {
+            previewHint.hidden = false;
+        }
+        for (var i = 0; i < files.length; i++) {
+            var file = files[i];
+            var kind = inferMediaKind(file);
+            var url = URL.createObjectURL(file);
+            previewUrls.push(url);
+            var item = document.createElement('div');
+            item.className = 'publish-media-preview-item';
+            var mediaWrap = document.createElement('div');
+            mediaWrap.className = 'publish-media-preview-media';
+            var meta = document.createElement('div');
+            meta.className = 'publish-media-preview-meta';
+            var kindEl = document.createElement('span');
+            kindEl.className = 'publish-media-preview-kind';
+            var nameEl = document.createElement('span');
+            nameEl.className = 'publish-media-preview-name';
+            nameEl.textContent = file.name || ('Archivo ' + (i + 1));
+            if (kind === 'image') {
+                kindEl.textContent = 'Imagen';
+                var img = document.createElement('img');
+                img.src = url;
+                img.alt = 'Vista previa: ' + (file.name || 'imagen');
+                mediaWrap.appendChild(img);
+            } else if (kind === 'video') {
+                kindEl.textContent = 'Vídeo';
+                var vid = document.createElement('video');
+                vid.src = url;
+                vid.muted = true;
+                vid.setAttribute('playsinline', '');
+                vid.controls = true;
+                vid.setAttribute('preload', 'metadata');
+                mediaWrap.appendChild(vid);
+            } else {
+                kindEl.textContent = 'Archivo';
+                var ph = document.createElement('p');
+                ph.style.margin = '0';
+                ph.style.color = '#94a3b8';
+                ph.style.fontSize = '12px';
+                ph.style.textAlign = 'center';
+                ph.textContent = 'Sin vista previa';
+                mediaWrap.appendChild(ph);
+            }
+            meta.appendChild(kindEl);
+            meta.appendChild(nameEl);
+            item.appendChild(mediaWrap);
+            item.appendChild(meta);
+            previewBox.appendChild(item);
+        }
+    }
+
+    if (mediaInput && previewBox) {
+        mediaInput.addEventListener('change', function () {
+            buildPublishPreview(mediaInput.files || []);
+        });
+    }
+
+    function closeTopbarMenu() {
+        if (!sheet) return;
+        sheet.classList.remove('is-open');
+        if (menuBackdrop) menuBackdrop.classList.remove('is-open');
+        if (toggle) toggle.setAttribute('aria-expanded', 'false');
+        if (bars) bars.classList.remove('is-open');
+        document.body.style.overflow = '';
+    }
+
+    function openModal() {
+        root.classList.add('publish-modal-open');
+        root.setAttribute('aria-hidden', 'false');
+        document.body.style.overflow = 'hidden';
+        closeTopbarMenu();
+        var first = document.getElementById('blade-publish-title');
+        if (first) {
+            setTimeout(function () { first.focus(); }, 80);
+        }
+    }
+
+    function closeModal() {
+        root.classList.remove('publish-modal-open');
+        root.setAttribute('aria-hidden', 'true');
+        document.body.style.overflow = '';
+    }
+
+    document.querySelectorAll('a.js-open-publish-modal').forEach(function (a) {
+        a.addEventListener('click', function (e) {
+            e.preventDefault();
+            openModal();
+        });
+    });
+
+    backdrop.addEventListener('click', closeModal);
+    closeBtn.addEventListener('click', closeModal);
+
+    document.addEventListener('keydown', function (e) {
+        if (e.key !== 'Escape') return;
+        if (!root.classList.contains('publish-modal-open')) return;
+        e.preventDefault();
+        closeModal();
+    });
+
+    @if(session('open_publish_modal'))
+    openModal();
+    @endif
+})();
+</script>
+@endauth
 </body>
 </html>

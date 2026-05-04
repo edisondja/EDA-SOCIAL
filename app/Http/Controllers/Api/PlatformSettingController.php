@@ -16,7 +16,7 @@ class PlatformSettingController extends Controller
     public function index(Request $request)
     {
         $menuColor = PlatformConfig::get('menu_color', '#d83a7c');
-        $logoUrl = PlatformConfig::get('logo_url');
+        $logoUrl = PlatformConfig::resolvedLogoUrl();
 
         return response()->json([
             'menu_color' => $menuColor,

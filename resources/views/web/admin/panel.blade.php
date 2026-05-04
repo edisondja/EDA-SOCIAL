@@ -85,7 +85,7 @@
                         <span class="aspecto-card-title-icon" aria-hidden="true">@include('web.partials.form-icon', ['name' => 'photo', 'size' => 16])</span>
                         Logo del sitio
                     </div>
-                    <p class="aspecto-card-hint">Imagen cuadrada o horizontal (PNG o JPG). Sustituye el marcador «E» cuando hay archivo válido.</p>
+                    <p class="aspecto-card-hint">Imagen cuadrada o horizontal (PNG o JPG). Si no subes archivo, se usa el logo por defecto «EDA-SOCIAL» (230×50 px).</p>
                     @if($aspectoLogoSrc)
                         <div class="admin-logo-row aspecto-logo-preview-wrap">
                             <img class="admin-logo-preview aspecto-logo-preview-lg" src="{{ $aspectoLogoSrc }}" alt="Logo actual">

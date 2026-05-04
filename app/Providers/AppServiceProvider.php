@@ -2,8 +2,10 @@
 
 namespace App\Providers;
 
+use App\Category;
 use App\Support\PlatformConfig;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -25,6 +27,19 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot()
     {
+        View::composer('web.layout', function ($view) {
+            $categories = collect();
+            if (auth()->check()) {
+                try {
+                    if (Schema::hasTable('categories')) {
+                        $categories = Category::query()->orderBy('name')->get();
+                    }
+                } catch (\Throwable $e) {
+                }
+            }
+            $view->with('publishCategories', $categories);
+        });
+
         try {
             if (!Schema::hasTable('platform_settings')) {
                 return;

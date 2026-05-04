@@ -2,12 +2,12 @@
 
 namespace App\Http\Controllers\Web;
 
-use App\Category;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Web\Concerns\SharesBranding;
 use App\Services\VideoPublisher;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Validator;
 
 class PublishController extends Controller
 {
@@ -15,15 +15,12 @@ class PublishController extends Controller
 
     public function create()
     {
-        $categories = Category::query()->orderBy('name')->get();
-        $branding = $this->branding();
-
-        return view('web.publish', compact('categories', 'branding'));
+        return redirect()->route('explore.index')->with('open_publish_modal', true);
     }
 
     public function store(Request $request)
     {
-        $validated = $request->validate([
+        $validator = Validator::make($request->all(), [
             'title' => 'required|string|max:180',
             'description' => 'nullable|string',
             'media_files' => 'required|array|min:1',
@@ -33,13 +30,19 @@ class PublishController extends Controller
             'category_ids.*' => 'integer|exists:categories,id',
         ]);
 
+        if ($validator->fails()) {
+            return back()->withErrors($validator)->withInput()->with('open_publish_modal', true);
+        }
+
+        $validated = $validator->validated();
+
         $mediaItems = [];
         foreach ($request->file('media_files', []) as $file) {
             $mime = (string) $file->getMimeType();
             $isVideo = strncmp($mime, 'video/', 6) === 0;
             $isImage = strncmp($mime, 'image/', 6) === 0;
             if (!$isVideo && !$isImage) {
-                return back()->withErrors(['media_files' => 'Tipo de archivo no permitido.'])->withInput();
+                return back()->withErrors(['media_files' => 'Tipo de archivo no permitido.'])->withInput()->with('open_publish_modal', true);
             }
             $path = $file->store('uploads', 'public');
             $url = Storage::disk('public')->url($path);
