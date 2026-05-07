@@ -158,6 +158,58 @@ class VideoPreviewGenerationService
         return ['status' => 'ok', 'detail' => implode(' + ', $detailParts)];
     }
 
+    /**
+     * Genera solamente el poster si el vídeo aún no tiene miniatura.
+     *
+     * @return array{status:string,detail:string}
+     */
+    public function generatePosterIfMissing(Video $video, ?string $ffmpegBinary = null): array
+    {
+        $ffmpegBinary = $ffmpegBinary ?? $this->resolveFfmpegBinary();
+        if ($ffmpegBinary === null) {
+            return ['status' => 'fail', 'detail' => 'ffmpeg no disponible'];
+        }
+
+        $video->loadMissing('media');
+        if (trim((string) $video->thumbnail_url) !== '') {
+            return ['status' => 'skip', 'detail' => 'Ya tiene miniatura'];
+        }
+
+        $sourceUrl = $this->primaryVideoSourceUrl($video);
+        if ($sourceUrl === null) {
+            return ['status' => 'skip', 'detail' => 'Sin URL de vídeo local o en medios'];
+        }
+        $input = $this->resolveFfmpegInput($sourceUrl);
+        if ($input === null) {
+            return ['status' => 'skip', 'detail' => 'No se pudo resolver el archivo de origen'];
+        }
+
+        $disk = Storage::disk('public');
+        $posterRel = self::PREVIEW_SUBDIR.'/'.$video->id.'_poster.jpg';
+        $posterPath = $disk->path($posterRel);
+        $seek = (float) config('ffmpeg.poster_seek_seconds', 1);
+        $seek = max(0, min(600, $seek));
+
+        $cmd = sprintf(
+            '%s -y -hide_banner -loglevel error -ss %s -i %s -frames:v 1 -q:v 3 %s',
+            escapeshellarg($ffmpegBinary),
+            escapeshellarg((string) $seek),
+            escapeshellarg($input),
+            escapeshellarg($posterPath)
+        );
+        $code = $this->runShell($cmd);
+        if ($code !== 0 || !is_readable($posterPath) || filesize($posterPath) < 32) {
+            @unlink($posterPath);
+
+            return ['status' => 'fail', 'detail' => 'Error al generar poster (ffmpeg código '.$code.')'];
+        }
+
+        $video->thumbnail_url = $disk->url($posterRel);
+        $video->save();
+
+        return ['status' => 'ok', 'detail' => 'poster'];
+    }
+
     public function resolveFfmpegBinary(): ?string
     {
         $cfg = trim((string) config('ffmpeg.binary', 'ffmpeg'));

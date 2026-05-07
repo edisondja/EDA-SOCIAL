@@ -6,6 +6,7 @@ use App\Comment;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Web\Concerns\SharesBranding;
 use App\Jobs\GenerateVideoHlsJob;
+use App\Jobs\GenerateVideoPosterJob;
 use App\Services\VideoViewTracker;
 use App\Support\PlatformConfig;
 use App\Support\VideoAdPresentation;
@@ -29,6 +30,7 @@ class PostController extends Controller
             return redirect()->route('posts.show', ['video' => $video->id, 'slug' => $video->playSlug()], 301);
         }
 
+        $this->queuePosterGenerationIfNeeded($video);
         $this->queueHlsGenerationIfNeeded($video);
 
         $video->load([
@@ -323,6 +325,18 @@ class PostController extends Controller
         $key = 'hls:queued:video:' . $video->id;
         if (Cache::add($key, '1', now()->addMinutes(10))) {
             GenerateVideoHlsJob::dispatch($video->id);
+        }
+    }
+
+    private function queuePosterGenerationIfNeeded(Video $video): void
+    {
+        if (trim((string) $video->thumbnail_url) !== '') {
+            return;
+        }
+
+        $key = 'poster:queued:video:' . $video->id;
+        if (Cache::add($key, '1', now()->addMinutes(10))) {
+            GenerateVideoPosterJob::dispatch($video->id);
         }
     }
 }

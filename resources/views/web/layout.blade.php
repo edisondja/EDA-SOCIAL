@@ -28,17 +28,16 @@
 <body class="min-h-full bg-gradient-to-b from-slate-50 via-white to-slate-100 text-slate-900">
 @php
     $logo = $branding['logo_url'] ?? null;
-    $logoSrc = $logo ? (\Illuminate\Support\Str::startsWith($logo, 'http://') || \Illuminate\Support\Str::startsWith($logo, 'https://') ? $logo : url($logo)) : null;
+    $logoSrc = $logo ? \App\Support\MediaSrc::web($logo) : '';
+    if ($logoSrc === '') {
+        $logoSrc = asset('images/default-logo.svg');
+    }
 @endphp
 <div class="mx-auto min-h-full max-w-6xl px-4 pb-16 pt-5 sm:px-6 lg:px-8">
     <header class="sticky top-3 z-30 mb-8 rounded-2xl border border-slate-200/80 bg-white/90 px-4 py-3 shadow-soft backdrop-blur-xl sm:px-6">
         <div class="flex items-center justify-between gap-4">
             <a href="{{ route('explore.index') }}" class="group flex min-w-0 flex-1 items-center gap-3 rounded-xl outline-none ring-slate-300 transition hover:opacity-95 focus-visible:ring-2" aria-label="Inicio">
-                @if($logoSrc)
-                    <img class="h-[50px] w-auto max-w-[250px] shrink-0 object-contain" src="{{ $logoSrc }}" alt="">
-                @else
-                    <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-lg font-bold text-white shadow-md" style="background: linear-gradient(135deg, var(--menu-color, #d83a7c), #6366f1);">E</div>
-                @endif
+                <img class="h-[50px] w-auto max-w-[250px] shrink-0 object-contain" src="{{ $logoSrc }}" alt="Logo del sitio">
                 <div class="min-w-0 text-left">
                     <strong class="block truncate text-base font-bold tracking-tight text-slate-900 sm:text-lg">{{ $branding['site_name'] ?? 'EDA_SOCIAL' }}</strong>
                     <p class="truncate text-xs text-slate-500 sm:text-sm">{{ \Illuminate\Support\Str::limit($branding['site_description'] ?? 'Plataforma de video social', 120) }}</p>
