@@ -108,7 +108,7 @@ class ImportVideosFromFolder extends Command
             $imported++;
         }
 
-        $this->newLine();
+        $this->line('');
         $this->info($dry ? 'Simulados: ' . $imported : 'Importados: ' . $imported);
         if (!$dry && $imported > 0) {
             $this->comment('Asegúrate de tener: php artisan storage:link');

@@ -54,7 +54,6 @@ class AppServiceProvider extends ServiceProvider
         ) {
             config(['cache.default' => 'redis']);
         }
-
         // RabbitMQ: Laravel no lo trae por defecto. Si instalas vladimir-yuldashev/laravel-queue-rabbitmq
         // y defines RABBITMQ_*, puedes poner QUEUE_CONNECTION=rabbitmq en .env.
         if (PlatformConfig::get('feature_rabbit_queue') === '1' && env('RABBITMQ_HOST')) {

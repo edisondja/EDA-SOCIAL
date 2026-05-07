@@ -5,8 +5,10 @@ namespace App\Http\Controllers\Web;
 use App\Category;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Web\Concerns\SharesBranding;
+use App\Support\PlatformConfig;
 use App\Video;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
 
 class ExploreController extends Controller
@@ -23,11 +25,29 @@ class ExploreController extends Controller
             ->where('moderation_status', 'active')
             ->latest('published_at');
 
-        if ($request->filled('search')) {
-            $search = $request->input('search');
-            $q->where(function ($inner) use ($search) {
-                $inner->where('title', 'like', '%' . $search . '%')
-                    ->orWhere('description', 'like', '%' . $search . '%');
+        $search = $request->input('search');
+        if (is_string($search)) {
+            $search = trim(mb_substr($search, 0, 160));
+        } else {
+            $search = '';
+        }
+        if ($search !== '') {
+            $like = '%' . addcslashes($search, '%_\\') . '%';
+            $q->where(function ($inner) use ($like) {
+                $inner->where('videos.title', 'like', $like)
+                    ->orWhere('videos.description', 'like', $like)
+                    ->orWhereHas('hashtags', function ($h) use ($like) {
+                        $h->where('hashtags.name', 'like', $like);
+                    })
+                    ->orWhereHas('categories', function ($c) use ($like) {
+                        $c->where('categories.name', 'like', $like);
+                    })
+                    ->orWhereHas('channel', function ($ch) use ($like) {
+                        $ch->where('channels.display_name', 'like', $like);
+                    })
+                    ->orWhereHas('author', function ($u) use ($like) {
+                        $u->where('users.name', 'like', $like);
+                    });
             });
         }
 
@@ -45,10 +65,38 @@ class ExploreController extends Controller
             });
         }
 
-        $videos = $q->paginate($perPage)->withQueryString();
-        $categories = Category::query()->orderBy('name')->get();
+        $videos = $this->useRedisQueryCache()
+            ? Cache::remember(
+                'explore:videos:' . md5(json_encode([
+                    'search' => $search,
+                    'categoria' => (string) $request->input('categoria', ''),
+                    'hashtag' => (string) $request->input('hashtag', ''),
+                    'page' => (int) $request->input('page', 1),
+                    'per_page' => $perPage,
+                ])),
+                now()->addSeconds(45),
+                function () use ($q, $perPage) {
+                    return $q->paginate($perPage)->withQueryString();
+                }
+            )
+            : $q->paginate($perPage)->withQueryString();
+
+        if ($request->boolean('fragment')) {
+            return response()->view('web.partials.explore-video-cards', compact('videos'));
+        }
+
+        $categories = $this->useRedisQueryCache()
+            ? Cache::remember('explore:categories', now()->addMinutes(10), function () {
+                return Category::query()->orderBy('name')->get();
+            })
+            : Category::query()->orderBy('name')->get();
         $branding = $this->branding();
 
         return view('web.explore', compact('videos', 'categories', 'branding'));
+    }
+
+    private function useRedisQueryCache(): bool
+    {
+        return PlatformConfig::get('feature_redis_cache') === '1' && config('cache.default') === 'redis';
     }
 }

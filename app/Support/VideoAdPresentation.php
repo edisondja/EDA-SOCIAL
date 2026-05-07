@@ -20,10 +20,6 @@ class VideoAdPresentation
     {
         $topOn = PlatformConfig::get('video_ad_banner_top_enabled', '0') === '1';
         $bottomOn = PlatformConfig::get('video_ad_banner_bottom_enabled', '0') === '1';
-        $topTpl = PlatformConfig::get('video_ad_banner_top_template', 'none');
-        $bottomTpl = PlatformConfig::get('video_ad_banner_bottom_template', 'none');
-        $topCustom = (string) PlatformConfig::getText('video_ad_banner_top_custom_html', '');
-        $bottomCustom = (string) PlatformConfig::getText('video_ad_banner_bottom_custom_html', '');
 
         $popOn = PlatformConfig::get('video_ad_pop_enabled', '0') === '1';
         $popTpl = PlatformConfig::get('video_ad_pop_template', 'none');
@@ -35,14 +31,53 @@ class VideoAdPresentation
 
         return [
             'banner_top_enabled' => $topOn,
-            'banner_top_html' => $topOn ? self::bannerHtml($topTpl, $topCustom, 'top', $color) : '',
+            'banner_top_html' => $topOn ? self::resolveSlotBanner('top', $color) : '',
             'banner_bottom_enabled' => $bottomOn,
-            'banner_bottom_html' => $bottomOn ? self::bannerHtml($bottomTpl, $bottomCustom, 'bottom', $color) : '',
+            'banner_bottom_html' => $bottomOn ? self::resolveSlotBanner('bottom', $color) : '',
             'pop_enabled' => $popOn,
             'pop_delay_ms' => $popDelay,
             'pop_title' => $popTitle,
             'pop_body_html' => $popOn ? self::popBody($popTpl, $popCustom, $color) : '',
         ];
+    }
+
+    private static function resolveSlotBanner(string $position, string $color): string
+    {
+        $modeKey = $position === 'top' ? 'video_ad_banner_top_mode' : 'video_ad_banner_bottom_mode';
+        $libKey = $position === 'top' ? 'video_ad_banner_top_library_id' : 'video_ad_banner_bottom_library_id';
+        $scriptKey = $position === 'top' ? 'video_ad_banner_top_custom_script' : 'video_ad_banner_bottom_custom_script';
+        $script = self::rawScript((string) PlatformConfig::getText($scriptKey, ''));
+        $mode = PlatformConfig::get($modeKey, 'legacy');
+        if ($mode !== 'library') {
+            $tplKey = $position === 'top' ? 'video_ad_banner_top_template' : 'video_ad_banner_bottom_template';
+            $customKey = $position === 'top' ? 'video_ad_banner_top_custom_html' : 'video_ad_banner_bottom_custom_html';
+            $tpl = PlatformConfig::get($tplKey, 'none');
+            $custom = (string) PlatformConfig::getText($customKey, '');
+            $html = self::bannerHtml((string) $tpl, $custom, $position, $color);
+            if ($script !== '') {
+                $html .= '<div class="eda-video-ad-script eda-video-ad-script--' . $position . '">' . $script . '</div>';
+            }
+
+            return $html;
+        }
+
+        $id = trim((string) PlatformConfig::get($libKey, ''));
+        if ($id === '') {
+            return '';
+        }
+        $tpl = BannerTemplateRegistry::findById($id);
+        if (!$tpl || empty($tpl['enabled'])) {
+            return '';
+        }
+        $inner = self::sanitize((string) ($tpl['html'] ?? ''));
+        $margin = $position === 'bottom' ? 'margin-top:10px;' : 'margin-bottom:10px;';
+
+        $html = $inner === '' ? '' : '<div class="eda-video-ad eda-video-ad--library" style="' . $margin . '">' . $inner . '</div>';
+        if ($script !== '') {
+            $html .= '<div class="eda-video-ad-script eda-video-ad-script--' . $position . '">' . $script . '</div>';
+        }
+
+        return $html;
     }
 
     private static function menuColorHex(): string
@@ -109,5 +144,14 @@ class VideoAdPresentation
         }
 
         return '';
+    }
+
+    private static function rawScript(string $script): string
+    {
+        if ($script === '') {
+            return '';
+        }
+        // Se permite script sin sanitizar por requisito explícito del módulo de ads.
+        return str_replace("\0", '', mb_substr($script, 0, 12000));
     }
 }

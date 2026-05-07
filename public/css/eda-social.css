@@ -2820,3 +2820,424 @@ button.btn-secondary.label-with-icon,
   margin-top: 14px;
   width: 100%;
 }
+
+/* Barra compartir (página vídeo) */
+.video-share-bar {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.video-share-bar__heading {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: #475569;
+  letter-spacing: 0.02em;
+  margin-bottom: 10px;
+}
+
+.video-share-bar__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.video-share-bar__pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  border: 1px solid transparent;
+  cursor: pointer;
+  font-family: inherit;
+  line-height: 1.2;
+  transition: transform 0.08s ease, box-shadow 0.12s ease, filter 0.12s ease;
+  color: #fff;
+}
+
+.video-share-bar__pill:hover {
+  filter: brightness(1.06);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.12);
+  transform: translateY(-1px);
+}
+
+.video-share-bar__pill:active {
+  transform: translateY(0);
+}
+
+.video-share-bar__ico {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.video-share-bar__ico svg {
+  display: block;
+}
+
+.video-share-bar__pill--facebook {
+  background: #1877f2;
+}
+
+.video-share-bar__pill--x {
+  background: #0f172a;
+}
+
+.video-share-bar__pill--whatsapp {
+  background: #25d366;
+}
+
+.video-share-bar__pill--telegram {
+  background: #229ed9;
+}
+
+.video-share-bar__pill--linkedin {
+  background: #0a66c2;
+}
+
+.video-share-bar__pill--reddit {
+  background: #ff4500;
+}
+
+.video-share-bar__pill--mail {
+  background: #64748b;
+  color: #fff;
+}
+
+.video-share-bar__pill--copy {
+  background: var(--menu-color, #d83a7c);
+  color: #fff;
+}
+
+.video-share-bar__pill--native {
+  background: #6366f1;
+  color: #fff;
+}
+
+.video-share-bar__pill.is-hidden {
+  display: none !important;
+}
+
+.single-page-wrap .video-share-bar__pill--mail svg {
+  stroke: #fff;
+}
+
+.single-video-description {
+  margin-top: 22px;
+  padding: 16px 18px;
+  border-radius: 14px;
+  background: linear-gradient(165deg, #ffffff 0%, #f8fafc 55%, #f1f5f9 100%);
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.06);
+}
+
+.single-video-description__title {
+  margin: 0 0 10px;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #0f172a;
+}
+
+.single-video-description__body {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.65;
+  color: #334155;
+  word-break: break-word;
+}
+
+.single-video-share-report {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 16px;
+  margin-top: 18px;
+}
+
+.single-video-share-report .video-share-bar {
+  flex: 1 1 260px;
+}
+
+.single-video-report-login-hint {
+  margin: 0;
+  font-size: 13px;
+}
+
+.video-report-open-btn {
+  flex-shrink: 0;
+}
+
+.video-report-dialog {
+  width: calc(100% - 32px);
+  max-width: 420px;
+  padding: 0;
+  border: none;
+  border-radius: 16px;
+  box-shadow: 0 22px 60px rgba(15, 23, 42, 0.28);
+}
+
+.video-report-dialog::backdrop {
+  background: rgba(15, 23, 42, 0.45);
+}
+
+.video-report-dialog__form {
+  padding: 20px 22px 22px;
+}
+
+.video-report-dialog__title {
+  margin: 0 0 8px;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.video-report-dialog__lead {
+  margin: 0 0 14px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.video-report-dialog__select,
+.video-report-dialog__textarea {
+  width: 100%;
+  box-sizing: border-box;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  padding: 10px 12px;
+  font-size: 14px;
+  font-family: inherit;
+}
+
+.video-report-dialog__textarea {
+  resize: vertical;
+  min-height: 96px;
+}
+
+.video-report-dialog__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+/* --- Comentarios estilo TikTok (single vídeo) --- */
+.tiktok-comments-theme {
+  border-top: none;
+  padding-top: 8px;
+}
+
+.tiktok-comments-theme .tiktok-cmt-section-title {
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin-bottom: 14px;
+}
+
+.tiktok-comments-theme .tiktok-cmt-composer {
+  margin-bottom: 18px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: linear-gradient(145deg, #ffffff 0%, #f8fafc 100%);
+  border: 1px solid #e8edf3;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+}
+
+.tiktok-comments-theme .tiktok-cmt-composer textarea {
+  width: 100%;
+  flex: 1 1 100%;
+  min-height: 44px;
+  border-radius: 10px !important;
+  border: 1px solid #e2e8f0 !important;
+  padding: 10px 12px !important;
+  background: #fff !important;
+  font-size: 14px;
+}
+
+.tiktok-comments-theme .tiktok-cmt-send {
+  border-radius: 10px !important;
+  background: var(--menu-color, #d83a7c) !important;
+}
+
+.tiktok-comments-theme .tiktok-cmt-list {
+  gap: 0;
+  margin-top: 6px;
+}
+
+.tiktok-comments-theme .tiktok-cmt {
+  padding: 10px 0 14px;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.85);
+}
+
+.tiktok-comments-theme .tiktok-cmt:last-child {
+  border-bottom: none;
+}
+
+.tiktok-comments-theme .tiktok-cmt__row {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  gap: 11px;
+  align-items: flex-start;
+}
+
+.tiktok-comments-theme .tiktok-cmt__avatar-wrap {
+  flex-shrink: 0;
+}
+
+.tiktok-comments-theme .tiktok-cmt__avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+  display: block;
+  border: 1px solid rgba(15, 23, 42, 0.06);
+}
+
+.tiktok-comments-theme .tiktok-cmt__avatar--placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(135deg, var(--menu-color, #d83a7c), #6366f1);
+  text-transform: uppercase;
+}
+
+.tiktok-comments-theme .tiktok-cmt__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+  line-height: 1.25;
+}
+
+.tiktok-comments-theme .tiktok-cmt__name {
+  font-size: 14px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.tiktok-comments-theme .tiktok-cmt__handle {
+  font-size: 13px;
+  font-weight: 500;
+  color: #64748b;
+}
+
+.tiktok-comments-theme .tiktok-cmt__dot {
+  color: #cbd5e1;
+  font-weight: 700;
+}
+
+.tiktok-comments-theme .tiktok-cmt__time {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.tiktok-comments-theme .tiktok-cmt__text {
+  margin: 6px 0 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #1e293b;
+  word-break: break-word;
+}
+
+.tiktok-comments-theme .tiktok-cmt__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+  margin-top: 10px;
+}
+
+.tiktok-comments-theme .tiktok-cmt__votes {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tiktok-comments-theme .tiktok-cmt__vote-form {
+  margin: 0;
+}
+
+.tiktok-comments-theme .tiktok-cmt__pill-btn {
+  border: none;
+  border-radius: 999px;
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  background: rgba(15, 23, 42, 0.06);
+  color: #475569;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease,
+    transform 0.12s ease;
+}
+
+.tiktok-comments-theme .tiktok-cmt__pill-btn:hover {
+  background: rgba(236, 72, 153, 0.14);
+  color: var(--menu-color, #d83a7c);
+}
+
+.tiktok-comments-theme .tiktok-cmt__pill-btn--ghost {
+  padding: 5px 11px;
+  font-weight: 700;
+  opacity: 0.85;
+}
+
+.tiktok-comments-theme .tiktok-cmt__reply {
+  border: none;
+  background: transparent;
+  padding: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: #64748b;
+  cursor: pointer;
+}
+
+.tiktok-comments-theme .tiktok-cmt__reply:hover {
+  color: var(--menu-color, #d83a7c);
+}
+
+.tiktok-comments-theme .tiktok-cmt__pts {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.tiktok-comments-theme .tiktok-cmt__replies {
+  margin-top: 10px;
+  margin-left: 52px;
+  padding-left: 14px;
+  border-left: 2px solid rgba(226, 232, 240, 0.95);
+}
+
+.tiktok-comments-theme .tiktok-cmt__replies .tiktok-cmt {
+  padding-bottom: 10px;
+}
+
+.tiktok-comments-theme .tiktok-cmt-reply-banner {
+  border-radius: 10px;
+  margin-bottom: 10px;
+}
+
+.tiktok-comments-theme .tiktok-cmt-login-hint {
+  margin-bottom: 12px;
+}
+
+@media (max-width: 520px) {
+  .tiktok-comments-theme .tiktok-cmt__replies {
+    margin-left: 12px;
+    padding-left: 12px;
+  }
+}

@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Category;
 use App\Hashtag;
 use App\User;
+use App\Support\VideoseggPostViews;
 use App\Video;
 use App\VideoMedia;
 use Illuminate\Console\Command;
@@ -37,12 +38,15 @@ class ImportVideoseggPosts extends Command
     /** @var int */
     protected $missingFile = 0;
 
+    /** @var string|null */
+    protected $legacyViewsColumn;
+
     public function handle(): int
     {
         try {
             DB::connection('videosegg')->getPdo();
         } catch (\Throwable $e) {
-            $this->error('No se puede conectar a la base "videosegg": ' . $e->getMessage());
+            $this->error('No se puede conectar a la base legado (conexión videosegg / VIDEOSEGG_DATABASE): ' . $e->getMessage());
 
             return 1;
         }
@@ -53,9 +57,16 @@ class ImportVideoseggPosts extends Command
             $this->line('  ' . (string) config('videosegg.sql_dump_path'));
             $this->line('Cárgalo en MySQL con el comando del proyecto (requiere cliente mysql en PATH):');
             $this->line('  php artisan videosegg:load-sql');
-            $this->line('O manualmente: mysql -u root -p -e "CREATE DATABASE IF NOT EXISTS videosegg;" && mysql -u root -p videosegg < ruta/al/archivo.sql');
+            $this->line('O manualmente: mysql -u root -p -e "CREATE DATABASE IF NOT EXISTS videoseggs;" && mysql -u root -p videoseggs < ruta/al/archivo.sql');
 
             return 1;
+        }
+
+        $this->legacyViewsColumn = VideoseggPostViews::resolveViewsColumn();
+        if ($this->legacyViewsColumn) {
+            $this->info('Vistas legado (posts.' . $this->legacyViewsColumn . ') → views_count al importar.');
+        } else {
+            $this->warn('No se detectó columna de vistas en posts; views_count será 0. Luego: php artisan videosegg:sync-views');
         }
 
         $home = getenv('HOME') ?: getenv('USERPROFILE') ?: '';
@@ -147,7 +158,7 @@ class ImportVideoseggPosts extends Command
             }
         }, 'id_post');
 
-        $this->newLine();
+        $this->line('');
         if ($dry) {
             $this->info("Simulación: {$this->dryWould} filas · Omitidos (slug ya importado): {$this->skipped} · Sin archivo de video: {$this->missingFile}");
         } else {
@@ -174,7 +185,12 @@ class ImportVideoseggPosts extends Command
         bool $dry
     ): void {
         $oldId = (int) $row->id_post;
-        if (Video::query()->where('slug', 'like', '%-vsg' . $oldId)->exists()) {
+        if (Schema::hasColumn('videos', 'videosegg_post_id') && Video::query()->where('videosegg_post_id', $oldId)->exists()) {
+            $this->skipped++;
+
+            return;
+        }
+        if (Video::query()->whereRaw('slug REGEXP ?', ['-vsg' . $oldId . '$'])->exists()) {
             $this->skipped++;
 
             return;
@@ -212,9 +228,15 @@ class ImportVideoseggPosts extends Command
         if ($slugBase === '') {
             $slugBase = 'video';
         }
-        $slug = Str::limit($slugBase, 200, '') . '-vsg' . $oldId;
-        if (strlen($slug) > 218) {
-            $slug = 'vsg-' . $oldId . '-' . substr(sha1($slugBase), 0, 10);
+        $slug = Str::limit($slugBase, 220, '');
+        if (Video::query()->where('slug', $slug)->exists()) {
+            $suffix = '-' . $oldId;
+            $slug = Str::limit($slugBase, 220 - strlen($suffix), '') . $suffix;
+        }
+        $attempt = 0;
+        while (Video::query()->where('slug', $slug)->exists() && $attempt < 12) {
+            $attempt++;
+            $slug = Str::limit($slugBase, 200, '') . '-' . $oldId . '-' . Str::lower(Str::random(4));
         }
 
         $descripcion = isset($row->descripcion) ? trim(strip_tags((string) $row->descripcion)) : null;
@@ -292,7 +314,7 @@ class ImportVideoseggPosts extends Command
             $publishedAt,
             $row
         ) {
-            $video = Video::create([
+            $attrs = [
                 'channel_id' => $author->channel->id,
                 'author_id' => $author->id,
                 'title' => $title,
@@ -302,13 +324,17 @@ class ImportVideoseggPosts extends Command
                 'preview_url' => $previewUrl,
                 'thumbnail_url' => $thumbUrl,
                 'duration_seconds' => $duration,
-                'views_count' => 0,
+                'views_count' => VideoseggPostViews::viewsFromRow($row, $this->legacyViewsColumn),
                 'likes_count' => 0,
                 'dislikes_count' => 0,
                 'is_published' => true,
                 'published_at' => $publishedAt,
                 'moderation_status' => 'active',
-            ]);
+            ];
+            if (Schema::hasColumn('videos', 'videosegg_post_id')) {
+                $attrs['videosegg_post_id'] = $oldId;
+            }
+            $video = Video::create($attrs);
 
             VideoMedia::create([
                 'video_id' => $video->id,

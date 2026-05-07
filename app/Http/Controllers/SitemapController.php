@@ -35,11 +35,11 @@ class SitemapController extends Controller
             ->where('is_published', true)
             ->where('moderation_status', 'active')
             ->orderByDesc('updated_at')
-            ->select(['id', 'updated_at'])
-            ->chunkById(500, function ($videos) use (&$lines, $base) {
+            ->select(['id', 'slug', 'title', 'updated_at'])
+            ->chunkById(500, function ($videos) use (&$lines) {
                 foreach ($videos as $video) {
                     $last = $video->updated_at instanceof Carbon ? $video->updated_at : now();
-                    $lines[] = $this->urlXml($base . '/p/' . $video->id, $last);
+                    $lines[] = $this->urlXml(route('posts.show', ['video' => $video->id, 'slug' => $video->playSlug()]), $last);
                 }
             });
 

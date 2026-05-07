@@ -10,6 +10,8 @@ use App\UserBan;
 use App\Video;
 use App\VideoBan;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
 
 class AdminController extends Controller
 {
@@ -76,6 +78,66 @@ class AdminController extends Controller
             'target_id' => $video->id,
             'action' => 'block_video',
             'payload' => $data,
+        ]);
+
+        return response()->json(['ok' => true, 'video' => $video->fresh()]);
+    }
+
+    public function activateVideo(Request $request, Video $video)
+    {
+        $video->update(['moderation_status' => 'active']);
+
+        VideoBan::query()
+            ->where('video_id', $video->id)
+            ->where('active', true)
+            ->update(['active' => false]);
+
+        ModerationAction::create([
+            'moderator_id' => $request->user()->id,
+            'target_type' => 'video',
+            'target_id' => $video->id,
+            'action' => 'activate_video',
+            'payload' => [],
+        ]);
+
+        return response()->json(['ok' => true, 'video' => $video->fresh()]);
+    }
+
+    public function updateVideo(Request $request, Video $video)
+    {
+        $request->merge(['is_published' => $request->has('is_published')]);
+        $pa = $request->input('published_at');
+        if ($pa === '' || $pa === null) {
+            $request->merge(['published_at' => null]);
+        }
+
+        $data = $request->validate([
+            'title' => 'required|string|max:180',
+            'slug' => ['required', 'string', 'max:220', Rule::unique('videos', 'slug')->ignore($video->id)],
+            'description' => 'nullable|string|max:65535',
+            'video_url' => 'required|string|max:255',
+            'preview_url' => 'nullable|string|max:255',
+            'thumbnail_url' => 'nullable|string|max:255',
+            'thumbnail_file' => 'nullable|image|max:5120',
+            'is_published' => 'boolean',
+            'published_at' => 'nullable|date',
+            'moderation_status' => 'required|in:active,blocked,review',
+        ]);
+
+        if ($request->hasFile('thumbnail_file')) {
+            $path = $request->file('thumbnail_file')->store('video-thumbnails/' . $video->id, 'public');
+            $data['thumbnail_url'] = Storage::disk('public')->url($path);
+        }
+        unset($data['thumbnail_file']);
+
+        $video->update($data);
+
+        ModerationAction::create([
+            'moderator_id' => $request->user()->id,
+            'target_type' => 'video',
+            'target_id' => $video->id,
+            'action' => 'update_video',
+            'payload' => ['fields' => array_keys($data)],
         ]);
 
         return response()->json(['ok' => true, 'video' => $video->fresh()]);

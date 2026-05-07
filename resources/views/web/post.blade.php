@@ -2,93 +2,159 @@
 
 @section('title', $video->title . ' · ' . ($branding['site_name'] ?? 'EDA_SOCIAL'))
 
+@push('styles')
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/plyr@3.7.8/dist/plyr.min.css" crossorigin="anonymous">
+@endpush
+
 @section('content')
 @php
     $ads = $videoAds ?? [];
-    $stats = $videoStats ?? ['total_views' => (int)($video->views_count ?? 0), 'daily_views' => []];
-    $daily = $stats['daily_views'] ?? [];
-    $totalStat = (int)($stats['total_views'] ?? $video->views_count ?? 0);
+    $posterUrl = $video->thumbnail_url ? \App\Support\MediaSrc::web($video->thumbnail_url) : '';
 @endphp
-<main class="single-page-wrap" style="max-width:1100px;margin:0 auto;padding:16px;">
-    <p><a href="{{ route('explore.index') }}" class="text-link">← Volver al feed</a></p>
-    <h1 style="margin-top:8px;">{{ $video->title }}</h1>
-    <p class="hint-text">Por {{ optional($video->author)->name ?? 'Autor' }} · {{ optional($video->channel)->display_name ?? 'Canal' }}</p>
+<main class="mx-auto max-w-[1100px] px-1 pb-16 sm:px-4">
+    <p class="text-sm"><a href="{{ route('explore.index') }}" class="text-link">← Volver al feed</a></p>
+    <h1 class="mt-3 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">{{ $video->title }}</h1>
+    <p class="mt-2 text-sm text-slate-500">Por {{ optional($video->author)->name ?? 'Autor' }} · {{ optional($video->channel)->display_name ?? 'Canal' }}</p>
 
     @if(!empty($ads['banner_top_enabled']) && !empty($ads['banner_top_html']))
-        <div class="video-ad-slot video-ad-slot--top" style="margin-top:16px;">{!! $ads['banner_top_html'] !!}</div>
+        <div class="video-ad-slot video-ad-slot--top mt-6 rounded-xl border border-slate-100 bg-slate-50/80 p-3">{!! $ads['banner_top_html'] !!}</div>
     @endif
 
-    <div class="carousel single-carousel" style="margin-top:16px;">
-        @foreach($video->media->sortBy('position') as $m)
-            @php $u = $m->url && (\Illuminate\Support\Str::startsWith($m->url, 'http://') || \Illuminate\Support\Str::startsWith($m->url, 'https://')) ? $m->url : url($m->url); @endphp
-            <div class="carousel-media" style="margin-bottom:12px;">
+    <div class="mt-6 flex flex-col gap-4">
+        @php $mediaSorted = $video->media->sortBy('position'); @endphp
+        @forelse($mediaSorted as $m)
+            @php
+                $u = \App\Support\MediaSrc::web($m->url);
+                $path = parse_url($u, PHP_URL_PATH) ?: '';
+                $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+                if ($ext === 'webm') { $mime = 'video/webm'; }
+                elseif (in_array($ext, ['ogv', 'ogg'], true)) { $mime = 'video/ogg'; }
+                elseif ($ext === 'mov') { $mime = 'video/quicktime'; }
+                else { $mime = 'video/mp4'; }
+            @endphp
+            <div>
                 @if($m->type === 'video')
-                    <video src="{{ $u }}" controls playsinline style="width:100%;max-height:520px;border-radius:12px;"></video>
+                    <div class="eda-player-shell">
+                        <video class="eda-plyr-video" playsinline controls preload="metadata" @if($posterUrl !== '') poster="{{ $posterUrl }}" @endif>
+                            <source src="{{ $u }}" type="{{ $mime }}">
+                        </video>
+                    </div>
                 @else
-                    <img src="{{ $u }}" alt="" style="width:100%;max-height:520px;object-fit:contain;border-radius:12px;">
+                    <img src="{{ $u }}" alt="" class="max-h-[520px] w-full rounded-2xl border border-slate-100 bg-slate-50 object-contain shadow-soft">
                 @endif
             </div>
-        @endforeach
+        @empty
+            @if(trim((string) $video->video_url) !== '')
+                @php
+                    $u = \App\Support\MediaSrc::web($video->video_url);
+                    $path = parse_url($u, PHP_URL_PATH) ?: '';
+                    $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+                    if ($ext === 'webm') { $mime = 'video/webm'; }
+                    elseif (in_array($ext, ['ogv', 'ogg'], true)) { $mime = 'video/ogg'; }
+                    elseif ($ext === 'mov') { $mime = 'video/quicktime'; }
+                    else { $mime = 'video/mp4'; }
+                @endphp
+                <div class="eda-player-shell">
+                    <video class="eda-plyr-video" playsinline controls preload="metadata" @if($posterUrl !== '') poster="{{ $posterUrl }}" @endif>
+                        <source src="{{ $u }}" type="{{ $mime }}">
+                    </video>
+                </div>
+            @endif
+        @endforelse
     </div>
 
-    @if(!empty($ads['banner_bottom_enabled']) && !empty($ads['banner_bottom_html']))
-        <div class="video-ad-slot video-ad-slot--bottom">{!! $ads['banner_bottom_html'] !!}</div>
-    @endif
-
-    @if(count($daily))
-        @php
-            $maxY = max(1, ...array_column($daily, 'views'));
-            $w = 320; $h = 56; $pad = 4;
-            $innerW = $w - $pad * 2;
-            $innerH = $h - $pad * 2;
-            $n = count($daily);
-            $step = $n > 1 ? $innerW / ($n - 1) : 0;
-            $pts = [];
-            foreach ($daily as $i => $row) {
-                $x = $pad + $i * $step;
-                $v = (int)($row['views'] ?? 0);
-                $y = $pad + $innerH - ($v / $maxY) * $innerH;
-                $pts[] = round($x, 2) . ',' . round($y, 2);
-            }
-            $poly = $pad . ',' . ($pad + $innerH) . ' ' . implode(' ', $pts) . ' ' . ($pad + $innerW) . ',' . ($pad + $innerH);
-            $mc = $branding['menu_color'] ?? '#d83a7c';
-        @endphp
-        <div class="video-stats-card" aria-label="Vistas por día últimos 30 días">
-            <div class="video-stats-card-head">
-                <span class="minimal-panel-title" style="margin-bottom:0;">Vistas (30 días)</span>
-                <strong class="video-stats-total">{{ number_format($totalStat, 0, ',', '.') }} total</strong>
-            </div>
-            <svg class="video-stats-svg" viewBox="0 0 {{ $w }} {{ $h }}" preserveAspectRatio="none" role="img" aria-hidden="true">
-                <defs>
-                    <linearGradient id="bladeSparkFill" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stop-color="{{ e($mc) }}" stop-opacity="0.35" />
-                        <stop offset="100%" stop-color="{{ e($mc) }}" stop-opacity="0.02" />
-                    </linearGradient>
-                </defs>
-                <polygon fill="url(#bladeSparkFill)" points="{{ $poly }}" />
-                <polyline fill="none" stroke="{{ e($mc) }}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="{{ implode(' ', $pts) }}" />
-            </svg>
-            <div class="video-stats-axis">
-                <span>{{ \Illuminate\Support\Str::after($daily[0]['date'] ?? '', '-') }}</span>
-                <span>{{ \Illuminate\Support\Str::after($daily[$n - 1]['date'] ?? '', '-') }}</span>
-            </div>
+    @php
+        $shareUrl = $video->playUrl();
+        $shareTitle = $video->title;
+    @endphp
+    <div class="mt-8 flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start">
+        <div class="min-w-0 flex-1">
+            @include('web.partials.share-bar', ['shareUrl' => $shareUrl, 'shareTitle' => $shareTitle])
         </div>
+        @auth
+            <button type="button" class="eda-btn-secondary shrink-0 border-red-100 bg-red-50/80 text-red-800 hover:bg-red-50 video-report-open-btn">Reportar vídeo</button>
+        @else
+            <span class="hint-text shrink-0"><a href="{{ route('login') }}" class="text-link">Inicia sesión para reportar</a></span>
+        @endauth
+    </div>
+
+    @include('web.partials.video-rating', [
+        'video' => $video,
+        'ratingAvg' => $ratingAvg,
+        'ratingCount' => $ratingCount,
+        'userRating' => $userRating,
+    ])
+
+    @auth
+        <dialog id="video-report-dialog" class="video-report-dialog">
+            <form method="post" action="{{ route('posts.report', ['video' => $video->id, 'slug' => $video->playSlug()]) }}" class="video-report-dialog__form">
+                @csrf
+                <h3 class="text-lg font-bold text-slate-900">Reportar contenido</h3>
+                <p class="hint-text text-sm">El equipo de moderación revisará tu reporte. Abusar de esta función puede conllevar acciones sobre la cuenta.</p>
+                <div>
+                    <label class="eda-label" for="video-report-reason">Motivo</label>
+                    <select id="video-report-reason" name="reason" required class="eda-input mt-1">
+                        @foreach(\App\VideoReport::reasonLabels() as $val => $lab)
+                            <option value="{{ $val }}">{{ $lab }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div>
+                    <label class="eda-label" for="video-report-details">Detalles (opcional)</label>
+                    <textarea id="video-report-details" name="details" rows="4" maxlength="2000" class="eda-input mt-1" placeholder="Describí el problema si querés aportar más contexto…"></textarea>
+                </div>
+                <div class="mt-2 flex flex-wrap gap-3 border-t border-slate-100 pt-4">
+                    <button type="submit" class="eda-btn-primary">Enviar reporte</button>
+                    <button type="button" class="eda-btn-secondary video-report-close-btn">Cancelar</button>
+                </div>
+            </form>
+        </dialog>
+        <script>
+        (function () {
+          var dlg = document.getElementById('video-report-dialog');
+          var openBtn = document.querySelector('.video-report-open-btn');
+          var closeBtns = document.querySelectorAll('.video-report-close-btn');
+          if (!dlg || !openBtn) return;
+          openBtn.addEventListener('click', function () {
+            if (typeof dlg.showModal === 'function') {
+              dlg.showModal();
+            } else {
+              window.alert('Tu navegador no permite el cuadro de reporte. Probá actualizar el navegador.');
+            }
+          });
+          closeBtns.forEach(function (b) {
+            b.addEventListener('click', function () { dlg.close(); });
+          });
+          dlg.addEventListener('click', function (e) {
+            if (e.target === dlg) dlg.close();
+          });
+        })();
+        </script>
+    @endauth
+
+    @if(trim((string) $video->description) !== '')
+        <section class="eda-card mt-10 border-slate-100" aria-labelledby="single-video-desc-heading">
+            <h2 id="single-video-desc-heading" class="text-lg font-bold text-slate-900">Descripción</h2>
+            <div class="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-slate-700">{!! nl2br(e($video->description)) !!}</div>
+        </section>
     @endif
 
-    <p style="margin-top:16px;">{{ $video->description }}</p>
+    @if(!empty($ads['banner_bottom_enabled']) && !empty($ads['banner_bottom_html']))
+        <div class="video-ad-slot video-ad-slot--bottom mt-10 rounded-xl border border-slate-100 bg-slate-50/80 p-3">{!! $ads['banner_bottom_html'] !!}</div>
+    @endif
 
     @if($video->hashtags->count())
-        <div class="tags-row">
+        <div class="mt-8 flex flex-wrap gap-2">
             @foreach($video->hashtags as $tag)
-                <a href="{{ route('explore.index', ['hashtag' => $tag->name]) }}" class="tag-btn">#{{ $tag->name }}</a>
+                <a href="{{ route('explore.index', ['hashtag' => $tag->name]) }}" class="inline-flex rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700 ring-1 ring-inset ring-slate-200/80 transition hover:bg-white hover:text-brand">#{{ $tag->name }}</a>
             @endforeach
         </div>
     @endif
 
     @if($related->count())
-        <section class="post-related-minimal">
-            <h2 class="minimal-panel-title">Relacionados</h2>
-            <div class="related-minimal-list">
+        <section class="mt-12 pb-8 sm:pb-10">
+            <h2 class="text-lg font-bold text-slate-900">Relacionados</h2>
+            <ul class="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 @foreach($related as $r)
                     @php
                         $thumb = $r->thumbnail_url;
@@ -96,44 +162,102 @@
                             $first = $r->media->sortBy('position')->first();
                             $thumb = $first->url ?? null;
                         }
-                        $thumbUrl = $thumb && (\Illuminate\Support\Str::startsWith($thumb, 'http://') || \Illuminate\Support\Str::startsWith($thumb, 'https://')) ? $thumb : ($thumb ? url($thumb) : '');
+                        $thumbUrl = $thumb ? \App\Support\MediaSrc::web($thumb) : '';
                     @endphp
-                    <a href="{{ route('posts.show', $r) }}" class="related-minimal-item">
-                        @if($thumbUrl)
-                            <img src="{{ $thumbUrl }}" alt="" loading="lazy" decoding="async">
-                        @else
-                            <span class="related-minimal-placeholder" aria-hidden="true"></span>
-                        @endif
-                        <span class="related-minimal-title">{{ $r->title }}</span>
-                    </a>
+                    <li>
+                        <a href="{{ $r->playUrl() }}" class="group flex gap-3 rounded-xl border border-slate-200/80 bg-white p-3 shadow-sm transition hover:border-slate-300 hover:shadow-soft">
+                            @if($thumbUrl)
+                                <img src="{{ $thumbUrl }}" alt="" loading="lazy" decoding="async" class="h-16 w-28 shrink-0 rounded-lg object-cover ring-1 ring-black/5">
+                            @else
+                                <span class="flex h-16 w-28 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-slate-200 to-slate-300 text-xs font-semibold text-slate-500" aria-hidden="true">Sin miniatura</span>
+                            @endif
+                            <span class="line-clamp-2 min-w-0 flex-1 text-sm font-semibold leading-snug text-slate-900 group-hover:text-brand">{{ $r->title }}</span>
+                        </a>
+                    </li>
                 @endforeach
-            </div>
+            </ul>
         </section>
     @endif
 
-    <section id="comments" class="comment-box comment-thread--minimal post-comments-block">
-        <h2 class="minimal-panel-title">Comentarios</h2>
+    <section id="comments" class="mt-16 border-t border-slate-200/70 pt-12 sm:mt-20 sm:pt-14">
+        <div class="flex items-start gap-4 sm:gap-5">
+            <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-slate-900 text-white shadow-md sm:h-12 sm:w-12">
+                @include('web.partials.form-icon', ['name' => 'chat-bubble-left', 'size' => 22, 'class' => 'text-white'])
+            </span>
+            <div class="min-w-0 pt-0.5">
+                <h2 class="text-lg font-bold tracking-tight text-slate-900 sm:text-xl">Comentarios</h2>
+                <p class="mt-1 text-sm leading-snug text-slate-500">Conversación abierta y respetuosa sobre este video.</p>
+            </div>
+        </div>
+
         @auth
-            <p id="blade-reply-hint" class="comment-reply-banner" style="display:none;">
-                Respondiendo a <strong id="blade-reply-name"></strong>
-                <button type="button" class="comment-reply-cancel" id="blade-reply-cancel">Cancelar</button>
-            </p>
-            <form method="post" action="{{ route('posts.comments.store', $video) }}" class="comment-form comment-form--minimal" id="blade-main-comment-form">
-                @csrf
-                <input type="hidden" name="parent_id" value="" id="blade-comment-parent-id">
-                <textarea id="comment-body" name="body" rows="2" placeholder="Escribe un comentario…" required maxlength="2000"></textarea>
-                <button type="submit" class="btn-primary comment-form-submit-minimal">Enviar</button>
-            </form>
+            @php
+                $__cu = auth()->user();
+                $__cuAvatar = $__cu && $__cu->avatar_url ? \App\Support\MediaSrc::web($__cu->avatar_url) : '';
+            @endphp
+            <div class="mt-8">
+                <p
+                    id="blade-reply-hint"
+                    class="mb-5 hidden rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3.5 text-sm text-slate-800 shadow-sm ring-1 ring-slate-100"
+                    style="border-left-width: 4px; border-left-color: var(--menu-color, #d83a7c);"
+                >
+                    <span class="text-slate-500">Respondiendo a</span>
+                    <strong id="blade-reply-name" class="font-semibold text-slate-900"></strong>
+                    <button type="button" class="ml-3 rounded-lg px-2 py-1 text-xs font-semibold text-slate-500 transition hover:bg-white hover:text-slate-800" id="blade-reply-cancel">Cancelar</button>
+                </p>
+                <form method="post" action="{{ $video->commentsStoreUrl() }}" class="flex flex-col gap-4 sm:flex-row sm:items-start" id="blade-main-comment-form">
+                    @csrf
+                    <input type="hidden" name="parent_id" value="" id="blade-comment-parent-id">
+                    <div class="flex shrink-0 justify-center sm:pt-1">
+                        @if($__cuAvatar !== '')
+                            <img src="{{ $__cuAvatar }}" alt="" class="h-11 w-11 rounded-full object-cover shadow-md ring-2 ring-white sm:h-12 sm:w-12" width="48" height="48">
+                        @else
+                            <span class="flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-br from-slate-800 to-slate-900 text-base font-semibold text-white shadow-md ring-2 ring-white sm:h-12 sm:w-12 sm:text-lg" aria-hidden="true">{{ \Illuminate\Support\Str::substr($__cu->name, 0, 1) }}</span>
+                        @endif
+                    </div>
+                    <div class="min-w-0 flex-1 flex flex-col">
+                        <label class="sr-only" for="comment-body">Tu comentario</label>
+                        <textarea
+                            id="comment-body"
+                            name="body"
+                            rows="3"
+                            placeholder="Escribí tu comentario…"
+                            required
+                            maxlength="2000"
+                            class="eda-input min-h-[5.5rem] w-full shrink-0 resize-y rounded-2xl border-slate-200 bg-white py-3.5 text-[15px] leading-relaxed shadow-inner placeholder:text-slate-400 focus:border-slate-300"
+                        ></textarea>
+                        <div class="mt-2 flex shrink-0 flex-col gap-2">
+                            <button type="submit" class="eda-btn-primary w-full justify-center rounded-xl px-8 py-2.5 text-sm font-semibold shadow-md sm:w-auto sm:self-end">
+                                Publicar comentario
+                            </button>
+                            <p class="text-[11px] leading-snug text-slate-400 sm:text-xs sm:text-right">Máximo 2.000 caracteres · Sé cordial.</p>
+                        </div>
+                    </div>
+                </form>
+            </div>
         @else
-            <p class="minimal-empty-hint"><a href="{{ route('login') }}">Inicia sesión</a> para comentar.</p>
+            <div class="mt-8 text-center sm:text-left">
+                <p class="text-sm text-slate-600">
+                    <a href="{{ route('login') }}" class="text-link font-semibold">Iniciá sesión</a>
+                    para sumarte a la conversación.
+                </p>
+            </div>
         @endauth
 
-        <div class="comment-list comment-list--minimal">
-            @forelse($commentsTree as $comment)
-                @include('web.partials.comment-thread', ['comment' => $comment, 'video' => $video, 'depth' => 0])
-            @empty
-                <p class="minimal-empty-hint">Todavía no hay comentarios.</p>
-            @endforelse
+        <div class="mt-10">
+            <div class="mx-auto max-w-3xl space-y-4">
+                @forelse($commentsTree as $comment)
+                    @include('web.partials.comment-thread', ['comment' => $comment, 'video' => $video, 'depth' => 0])
+                @empty
+                    <div class="py-12 text-center">
+                        <span class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-400">
+                            @include('web.partials.form-icon', ['name' => 'chat-bubble-left', 'size' => 24])
+                        </span>
+                        <p class="text-base font-semibold text-slate-700">Todavía no hay comentarios</p>
+                        <p class="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-slate-500">Cuando alguien publique el primero, aparecerá aquí.</p>
+                    </div>
+                @endforelse
+            </div>
         </div>
     </section>
 </main>
@@ -149,15 +273,15 @@
   if (!parentField || !hint || !nameEl) return;
   function clearReply() {
     parentField.value = '';
-    hint.style.display = 'none';
-    if (ta) { ta.placeholder = 'Escribe un comentario…'; }
+    hint.classList.add('hidden');
+    if (ta) { ta.placeholder = 'Escribí tu comentario…'; }
   }
   document.querySelectorAll('.blade-comment-reply').forEach(function (btn) {
     btn.addEventListener('click', function () {
       parentField.value = btn.getAttribute('data-parent-id') || '';
       nameEl.textContent = btn.getAttribute('data-author-name') || '';
-      hint.style.display = 'block';
-      if (ta) { ta.placeholder = 'Escribe tu respuesta…'; ta.focus(); }
+      hint.classList.remove('hidden');
+      if (ta) { ta.placeholder = 'Escribí tu respuesta…'; ta.focus(); }
     });
   });
   if (cancel) cancel.addEventListener('click', clearReply);
@@ -171,12 +295,12 @@
 
 @if(!empty($ads['pop_enabled']) && !empty($ads['pop_body_html']))
     <div id="blade-video-pop-root" hidden data-delay="{{ (int)($ads['pop_delay_ms'] ?? 3500) }}">
-        <div class="video-pop-ad-backdrop" id="blade-video-pop-backdrop" style="display:none;">
+        <div class="video-pop-ad-backdrop hidden" id="blade-video-pop-backdrop">
             <div class="video-pop-ad-dialog" role="dialog" aria-modal="true" aria-labelledby="blade-pop-title">
                 <button type="button" class="video-pop-ad-close" id="blade-video-pop-close" aria-label="Cerrar">×</button>
                 <h3 id="blade-pop-title" class="video-pop-ad-title">{{ $ads['pop_title'] ?? 'Información' }}</h3>
-                <div class="video-pop-ad-body">{!! $ads['pop_body_html'] !!}</div>
-                <button type="button" class="btn-primary video-pop-ad-cta" id="blade-video-pop-cta">Cerrar</button>
+                <div class="pop-ad-body mt-4 text-sm leading-relaxed text-slate-700">{!! $ads['pop_body_html'] !!}</div>
+                <button type="button" class="eda-btn-primary mt-8 w-full justify-center sm:w-auto" id="blade-video-pop-cta">Cerrar</button>
             </div>
         </div>
     </div>
@@ -186,8 +310,12 @@
         if (!root) return;
         var backdrop = document.getElementById('blade-video-pop-backdrop');
         var delay = parseInt(root.getAttribute('data-delay') || '3500', 10) || 0;
-        function hide() { if (backdrop) backdrop.style.display = 'none'; }
-        function show() { if (backdrop) backdrop.style.display = 'grid'; }
+        function hide() {
+            if (backdrop) backdrop.classList.add('hidden');
+        }
+        function show() {
+            if (backdrop) backdrop.classList.remove('hidden');
+        }
         setTimeout(show, Math.max(0, delay));
         var c = document.getElementById('blade-video-pop-close');
         var b = document.getElementById('blade-video-pop-cta');
@@ -197,3 +325,60 @@
     </script>
 @endif
 @endsection
+
+@push('scripts')
+<script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.17/dist/hls.min.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/plyr@3.7.8/dist/plyr.min.js" crossorigin="anonymous"></script>
+<script>
+(function () {
+  if (typeof Plyr === 'undefined') return;
+  var title = @json($video->title);
+  var i18n = {
+    restart: 'Reiniciar',
+    rewind: 'Retroceder {seektime} s',
+    play: 'Reproducir',
+    pause: 'Pausar',
+    fastForward: 'Avanzar {seektime} s',
+    seek: 'Ir a',
+    seekLabel: '{currentTime} de {duration}',
+    played: 'Reproducido',
+    buffered: 'En búfer',
+    currentTime: 'Tiempo',
+    duration: 'Duración',
+    volume: 'Volumen',
+    mute: 'Silenciar',
+    unmute: 'Activar sonido',
+    enterFullscreen: 'Pantalla completa',
+    exitFullscreen: 'Salir de pantalla completa',
+    frameTitle: 'Reproductor: ' + title,
+    settings: 'Ajustes',
+    pip: 'Imagen en imagen',
+    menuBack: 'Atrás',
+    speed: 'Velocidad',
+    normal: 'Normal',
+    quality: 'Calidad',
+    loop: 'Repetir'
+  };
+  document.querySelectorAll('.eda-plyr-video').forEach(function (el) {
+    var sourceEl = el.querySelector('source');
+    var src = sourceEl ? (sourceEl.getAttribute('src') || '') : '';
+    var isHls = /\.m3u8(\?.*)?$/i.test(src);
+    if (isHls && typeof Hls !== 'undefined' && Hls.isSupported()) {
+      var hls = new Hls();
+      hls.loadSource(src);
+      hls.attachMedia(el);
+    }
+    new Plyr(el, {
+      controls: ['play-large', 'play', 'progress', 'current-time', 'mute', 'volume', 'pip', 'fullscreen', 'settings'],
+      settings: ['speed'],
+      speed: { selected: 1, options: [0.75, 1, 1.25, 1.5, 2] },
+      keyboard: { focused: true, global: false },
+      tooltips: { controls: true, seek: true },
+      hideControls: true,
+      resetOnEnd: false,
+      i18n: i18n
+    });
+  });
+})();
+</script>
+@endpush

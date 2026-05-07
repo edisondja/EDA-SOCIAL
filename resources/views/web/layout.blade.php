@@ -1,65 +1,96 @@
 <!DOCTYPE html>
-<html lang="es" style="--menu-color: {{ $branding['menu_color'] ?? '#d83a7c' }}">
+<html lang="es" class="h-full" style="--menu-color: {{ $branding['menu_color'] ?? '#d83a7c' }}">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>@yield('title', ($branding['site_name'] ?? 'EDA_SOCIAL'))</title>
-    <link rel="stylesheet" href="{{ asset('css/eda-social.css') }}">
-    <style>
-        .blade-flash { padding: 10px 14px; margin: 0 18px 12px; border-radius: 10px; font-size: 14px; }
-        .blade-flash--ok { background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; }
-        .blade-flash--err { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
-        .blade-nav-active { box-shadow: inset 0 0 0 2px rgba(255,255,255,.35); pointer-events: none; }
-    </style>
+    @php
+        $__gaId = '';
+        try {
+            $__gaId = trim((string) \App\Support\PlatformConfig::get('google_analytics_measurement_id', ''));
+        } catch (\Throwable $e) {
+            $__gaId = '';
+        }
+    @endphp
+    @if($__gaId !== '')
+        <script async src="https://www.googletagmanager.com/gtag/js?id={{ rawurlencode($__gaId) }}"></script>
+        <script>
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){dataLayer.push(arguments);}
+            gtag('js', new Date());
+            gtag('config', @json($__gaId));
+        </script>
+    @endif
+    <link rel="stylesheet" href="{{ mix('css/app.css') }}">
+    @stack('styles')
 </head>
-<body>
+<body class="min-h-full bg-gradient-to-b from-slate-50 via-white to-slate-100 text-slate-900">
 @php
     $logo = $branding['logo_url'] ?? null;
     $logoSrc = $logo ? (\Illuminate\Support\Str::startsWith($logo, 'http://') || \Illuminate\Support\Str::startsWith($logo, 'https://') ? $logo : url($logo)) : null;
 @endphp
-<div class="app-shell">
-    <header class="topbar">
-        <a href="{{ route('explore.index') }}" class="brand-block brand-block-link" aria-label="Inicio">
-            @if($logoSrc)
-                <img class="brand-logo" src="{{ $logoSrc }}" alt="">
-            @else
-                <div class="brand-mark" aria-hidden="true">E</div>
-            @endif
-            <div class="brand-text">
-                <strong>{{ $branding['site_name'] ?? 'EDA_SOCIAL' }}</strong>
-                <p>{{ \Illuminate\Support\Str::limit($branding['site_description'] ?? 'Plataforma de video social', 140) }}</p>
-            </div>
-        </a>
-        <button type="button" class="topbar-menu-toggle" id="blade-topbar-menu-toggle" aria-expanded="false" aria-controls="blade-topbar-menu-sheet">
-            <span class="sr-only">Abrir o cerrar menú</span>
-            <span class="topbar-menu-toggle-bars" aria-hidden="true"></span>
-        </button>
-        <div class="topbar-menu-backdrop" id="blade-topbar-menu-backdrop"></div>
-        <div class="topbar-menu-sheet" id="blade-topbar-menu-sheet">
-            <nav class="menu-actions" aria-label="Principal">
-                <a href="{{ route('explore.index') }}" class="btn-primary nav-menu-btn {{ request()->routeIs('explore.index') ? 'blade-nav-active' : '' }}">Inicio</a>
+<div class="mx-auto min-h-full max-w-6xl px-4 pb-16 pt-5 sm:px-6 lg:px-8">
+    <header class="sticky top-3 z-30 mb-8 rounded-2xl border border-slate-200/80 bg-white/90 px-4 py-3 shadow-soft backdrop-blur-xl sm:px-6">
+        <div class="flex items-center justify-between gap-4">
+            <a href="{{ route('explore.index') }}" class="group flex min-w-0 flex-1 items-center gap-3 rounded-xl outline-none ring-slate-300 transition hover:opacity-95 focus-visible:ring-2" aria-label="Inicio">
+                @if($logoSrc)
+                    <img class="h-[50px] w-auto max-w-[250px] shrink-0 object-contain" src="{{ $logoSrc }}" alt="">
+                @else
+                    <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-lg font-bold text-white shadow-md" style="background: linear-gradient(135deg, var(--menu-color, #d83a7c), #6366f1);">E</div>
+                @endif
+                <div class="min-w-0 text-left">
+                    <strong class="block truncate text-base font-bold tracking-tight text-slate-900 sm:text-lg">{{ $branding['site_name'] ?? 'EDA_SOCIAL' }}</strong>
+                    <p class="truncate text-xs text-slate-500 sm:text-sm">{{ \Illuminate\Support\Str::limit($branding['site_description'] ?? 'Plataforma de video social', 120) }}</p>
+                </div>
+            </a>
+            <button type="button" class="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-700 shadow-sm transition hover:bg-white hover:shadow md:hidden" id="blade-topbar-menu-toggle" aria-expanded="false" aria-controls="blade-topbar-menu-sheet" aria-label="Abrir menú">
+                <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" d="M4 7h16M4 12h16M4 17h16"/></svg>
+            </button>
+            <nav class="hidden items-center gap-2 md:flex" aria-label="Principal">
+                <a href="{{ route('explore.index') }}" class="eda-btn-primary {{ request()->routeIs('explore.index') ? 'blade-nav-active opacity-90' : '' }} !px-4 !py-2 !text-sm">Inicio</a>
                 @auth
-                    <a href="{{ route('publish.create') }}" class="btn-primary nav-menu-btn js-open-publish-modal">Publicar</a>
-                    <a href="{{ route('account.show') }}" class="btn-primary nav-menu-btn {{ request()->routeIs('account.*') ? 'blade-nav-active' : '' }}">Mi cuenta</a>
+                    <a href="{{ route('publish.create') }}" class="eda-btn-primary js-open-publish-modal !bg-slate-900 !px-4 !py-2 !text-sm hover:!brightness-110">Publicar</a>
+                    <a href="{{ route('account.show') }}" class="eda-btn-secondary !px-4 !py-2 text-sm {{ request()->routeIs('account.*') ? 'border-slate-400 bg-slate-100' : '' }}">Mi cuenta</a>
                     @if(in_array(optional(auth()->user()->role)->name, ['admin', 'moderator'], true))
-                        <a href="{{ route('admin.panel', ['section' => 'seo']) }}" class="btn-primary nav-menu-btn {{ request()->is('admin*') ? 'blade-nav-active' : '' }}">Administración</a>
+                        <a href="{{ route('admin.panel', ['section' => 'seo']) }}" class="eda-btn-secondary !px-4 !py-2 text-sm {{ request()->is('admin*') ? 'border-slate-400 bg-slate-100' : '' }}">Admin</a>
                     @endif
-                    <form action="{{ route('logout') }}" method="post" style="display:inline;">
+                    <form action="{{ route('logout') }}" method="post" class="inline">
                         @csrf
-                        <button type="submit" class="btn-primary nav-menu-btn">Cerrar sesión</button>
+                        <button type="submit" class="eda-btn-secondary !px-4 !py-2 text-sm">Salir</button>
                     </form>
                 @else
-                    <a href="{{ route('login') }}" class="btn-primary nav-menu-btn">Iniciar sesión</a>
+                    <a href="{{ route('login') }}" class="eda-btn-primary !px-4 !py-2 !text-sm">Entrar</a>
                 @endauth
             </nav>
         </div>
     </header>
 
+    <div id="blade-topbar-menu-backdrop" class="fixed inset-0 z-40 bg-slate-900/45 opacity-0 pointer-events-none transition-opacity duration-200 md:hidden" aria-hidden="true"></div>
+    <div id="blade-topbar-menu-sheet" class="fixed inset-y-0 right-0 z-50 flex w-[min(20rem,100vw)] translate-x-full flex-col gap-2 border-l border-slate-200 bg-white p-4 pt-6 shadow-2xl transition-transform duration-300 ease-out md:hidden" role="dialog" aria-modal="true" aria-label="Menú">
+        <nav class="flex flex-col gap-2" aria-label="Navegación móvil">
+            <a href="{{ route('explore.index') }}" class="eda-btn-primary w-full justify-center">Inicio</a>
+            @auth
+                <a href="{{ route('publish.create') }}" class="eda-btn-primary js-open-publish-modal w-full justify-center bg-slate-900 hover:!brightness-110">Publicar</a>
+                <a href="{{ route('account.show') }}" class="eda-btn-secondary w-full justify-center">Mi cuenta</a>
+                @if(in_array(optional(auth()->user()->role)->name, ['admin', 'moderator'], true))
+                    <a href="{{ route('admin.panel', ['section' => 'seo']) }}" class="eda-btn-secondary w-full justify-center">Administración</a>
+                @endif
+                <form action="{{ route('logout') }}" method="post">
+                    @csrf
+                    <button type="submit" class="eda-btn-secondary w-full justify-center">Cerrar sesión</button>
+                </form>
+            @else
+                <a href="{{ route('login') }}" class="eda-btn-primary w-full justify-center">Iniciar sesión</a>
+            @endauth
+        </nav>
+    </div>
+
     @if (session('status'))
-        <p class="blade-flash blade-flash--ok" role="status">{{ session('status') }}</p>
+        <div class="mb-6 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-900 shadow-sm" role="status">{{ session('status') }}</div>
     @endif
     @if ($errors->any())
-        <div class="blade-flash blade-flash--err" role="alert">
+        <div class="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900 shadow-sm" role="alert">
             @foreach ($errors->all() as $error)
                 <div>{{ $error }}</div>
             @endforeach
@@ -76,20 +107,22 @@
     var toggle = document.getElementById('blade-topbar-menu-toggle');
     var sheet = document.getElementById('blade-topbar-menu-sheet');
     var backdrop = document.getElementById('blade-topbar-menu-backdrop');
-    var bars = toggle ? toggle.querySelector('.topbar-menu-toggle-bars') : null;
     if (!toggle || !sheet || !backdrop) return;
 
     function setOpen(open) {
-        sheet.classList.toggle('is-open', open);
-        backdrop.classList.toggle('is-open', open);
         toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
-        if (bars) bars.classList.toggle('is-open', open);
+        backdrop.classList.toggle('opacity-0', !open);
+        backdrop.classList.toggle('pointer-events-none', !open);
+        backdrop.setAttribute('aria-hidden', open ? 'false' : 'true');
+        sheet.classList.toggle('translate-x-full', !open);
+        sheet.classList.toggle('translate-x-0', open);
         document.body.style.overflow = open ? 'hidden' : '';
     }
 
     toggle.addEventListener('click', function (e) {
         e.stopPropagation();
-        setOpen(!sheet.classList.contains('is-open'));
+        var open = sheet.classList.contains('translate-x-full');
+        setOpen(open);
     });
 
     backdrop.addEventListener('click', function () {
@@ -103,13 +136,13 @@
     });
 
     document.addEventListener('keydown', function (e) {
-        if (e.key === 'Escape' && sheet.classList.contains('is-open')) {
+        if (e.key === 'Escape' && !sheet.classList.contains('translate-x-full')) {
             setOpen(false);
         }
     });
 
     window.addEventListener('resize', function () {
-        if (window.innerWidth > 768 && sheet.classList.contains('is-open')) {
+        if (window.innerWidth >= 768) {
             setOpen(false);
         }
     });
@@ -121,10 +154,8 @@
     var root = document.getElementById('blade-publish-modal');
     var backdrop = document.getElementById('blade-publish-modal-backdrop');
     var closeBtn = document.getElementById('blade-publish-modal-close');
-    var form = document.getElementById('blade-publish-modal-form');
     var sheet = document.getElementById('blade-topbar-menu-sheet');
     var toggle = document.getElementById('blade-topbar-menu-toggle');
-    var bars = toggle ? toggle.querySelector('.topbar-menu-toggle-bars') : null;
     var menuBackdrop = document.getElementById('blade-topbar-menu-backdrop');
     var mediaInput = document.getElementById('blade-publish-media');
     var previewBox = document.getElementById('blade-publish-media-preview');
@@ -154,52 +185,42 @@
 
     function inferMediaKind(file) {
         var t = (file.type || '').toLowerCase();
-        if (t.indexOf('image/') === 0) {
-            return 'image';
-        }
-        if (t.indexOf('video/') === 0) {
-            return 'video';
-        }
+        if (t.indexOf('image/') === 0) return 'image';
+        if (t.indexOf('video/') === 0) return 'video';
         var n = (file.name || '').toLowerCase();
-        if (/\.(jpe?g|png|gif|webp|bmp|svg)$/.test(n)) {
-            return 'image';
-        }
-        if (/\.(mp4|webm|mov|mkv|m4v|avi|ogv)$/.test(n)) {
-            return 'video';
-        }
+        if (/\.(jpe?g|png|gif|webp|bmp|svg)$/.test(n)) return 'image';
+        if (/\.(mp4|webm|mov|mkv|m4v|avi|ogv)$/.test(n)) return 'video';
         return 'other';
     }
 
     function buildPublishPreview(files) {
         clearPublishPreview();
-        if (!previewBox || !files || !files.length) {
-            return;
-        }
+        if (!previewBox || !files || !files.length) return;
         previewBox.hidden = false;
-        if (previewHint) {
-            previewHint.hidden = false;
-        }
+        if (previewHint) previewHint.hidden = false;
+        previewBox.className = 'grid gap-3 sm:grid-cols-2';
         for (var i = 0; i < files.length; i++) {
             var file = files[i];
             var kind = inferMediaKind(file);
             var url = URL.createObjectURL(file);
             previewUrls.push(url);
             var item = document.createElement('div');
-            item.className = 'publish-media-preview-item';
+            item.className = 'overflow-hidden rounded-xl border border-slate-200 bg-slate-50';
             var mediaWrap = document.createElement('div');
-            mediaWrap.className = 'publish-media-preview-media';
+            mediaWrap.className = 'relative aspect-video bg-slate-900';
             var meta = document.createElement('div');
-            meta.className = 'publish-media-preview-meta';
+            meta.className = 'flex flex-col gap-1 border-t border-slate-200 bg-white px-3 py-2 text-xs';
             var kindEl = document.createElement('span');
-            kindEl.className = 'publish-media-preview-kind';
+            kindEl.className = 'font-semibold uppercase tracking-wide text-slate-500';
             var nameEl = document.createElement('span');
-            nameEl.className = 'publish-media-preview-name';
+            nameEl.className = 'truncate text-slate-700';
             nameEl.textContent = file.name || ('Archivo ' + (i + 1));
             if (kind === 'image') {
                 kindEl.textContent = 'Imagen';
                 var img = document.createElement('img');
                 img.src = url;
-                img.alt = 'Vista previa: ' + (file.name || 'imagen');
+                img.className = 'h-full w-full object-contain';
+                img.alt = 'Vista previa';
                 mediaWrap.appendChild(img);
             } else if (kind === 'video') {
                 kindEl.textContent = 'Vídeo';
@@ -208,15 +229,13 @@
                 vid.muted = true;
                 vid.setAttribute('playsinline', '');
                 vid.controls = true;
+                vid.className = 'h-full w-full object-contain';
                 vid.setAttribute('preload', 'metadata');
                 mediaWrap.appendChild(vid);
             } else {
                 kindEl.textContent = 'Archivo';
                 var ph = document.createElement('p');
-                ph.style.margin = '0';
-                ph.style.color = '#94a3b8';
-                ph.style.fontSize = '12px';
-                ph.style.textAlign = 'center';
+                ph.className = 'flex h-full items-center justify-center p-4 text-center text-slate-400';
                 ph.textContent = 'Sin vista previa';
                 mediaWrap.appendChild(ph);
             }
@@ -235,11 +254,11 @@
     }
 
     function closeTopbarMenu() {
-        if (!sheet) return;
-        sheet.classList.remove('is-open');
-        if (menuBackdrop) menuBackdrop.classList.remove('is-open');
-        if (toggle) toggle.setAttribute('aria-expanded', 'false');
-        if (bars) bars.classList.remove('is-open');
+        if (!sheet || !menuBackdrop || !toggle) return;
+        sheet.classList.add('translate-x-full');
+        sheet.classList.remove('translate-x-0');
+        menuBackdrop.classList.add('opacity-0', 'pointer-events-none');
+        toggle.setAttribute('aria-expanded', 'false');
         document.body.style.overflow = '';
     }
 
@@ -249,9 +268,7 @@
         document.body.style.overflow = 'hidden';
         closeTopbarMenu();
         var first = document.getElementById('blade-publish-title');
-        if (first) {
-            setTimeout(function () { first.focus(); }, 80);
-        }
+        if (first) setTimeout(function () { first.focus(); }, 80);
     }
 
     function closeModal() {
@@ -283,5 +300,6 @@
 })();
 </script>
 @endauth
+@stack('scripts')
 </body>
 </html>

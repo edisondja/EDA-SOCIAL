@@ -113,6 +113,9 @@ class LoadVideoseggSql extends Command
     {
         $finder = new ExecutableFinder();
         $extraDirs = [
+            '/opt/homebrew/opt/mysql-client/bin',
+            '/opt/homebrew/opt/mysql@8.4/bin',
+            '/opt/homebrew/opt/mysql@8.0/bin',
             '/usr/local/mysql/bin',
             '/opt/homebrew/bin',
             '/Applications/MAMP/Library/bin',

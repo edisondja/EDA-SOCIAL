@@ -26,6 +26,7 @@ class PlatformSettingController extends Controller
             'site_keywords' => PlatformConfig::get('site_keywords', ''),
             'public_site_url' => PlatformConfig::get('public_site_url', ''),
             'use_router_links' => PlatformConfig::get('use_router_links', '1') === '1',
+            'google_analytics_measurement_id' => PlatformConfig::get('google_analytics_measurement_id', ''),
             'sitemap_url' => $request->getSchemeAndHttpHost() . '/sitemap.xml',
         ]);
     }
@@ -88,13 +89,36 @@ class PlatformSettingController extends Controller
 
     public function updateSeo(Request $request)
     {
-        $data = $request->validate([
+        $rules = [
             'site_name' => 'nullable|string|max:120',
             'site_description' => 'nullable|string|max:2000',
             'site_keywords' => 'nullable|string|max:500',
             'public_site_url' => 'nullable|string|max:255',
             'use_router_links' => 'nullable|boolean',
-        ]);
+        ];
+
+        if ($request->has('google_analytics_measurement_id')) {
+            $rules['google_analytics_measurement_id'] = [
+                'nullable',
+                'string',
+                'max:40',
+                function ($attribute, $value, $fail) {
+                    $v = trim((string) $value);
+                    if ($v === '') {
+                        return;
+                    }
+                    if (preg_match('/^G-[A-Z0-9]+$/i', $v)) {
+                        return;
+                    }
+                    if (preg_match('/^UA-\d+-\d+$/', $v)) {
+                        return;
+                    }
+                    $fail('El ID debe ser GA4 (G-…) o Universal Analytics (UA-número-número).');
+                },
+            ];
+        }
+
+        $data = $request->validate($rules);
 
         if (array_key_exists('site_name', $data)) {
             PlatformConfig::set('site_name', $data['site_name'] ?? '');
@@ -110,6 +134,13 @@ class PlatformSettingController extends Controller
         }
         if (array_key_exists('use_router_links', $data)) {
             PlatformConfig::set('use_router_links', !empty($data['use_router_links']) ? '1' : '0');
+        }
+        if (array_key_exists('google_analytics_measurement_id', $data)) {
+            $ga = trim((string) ($data['google_analytics_measurement_id'] ?? ''));
+            if ($ga !== '' && stripos($ga, 'G-') === 0) {
+                $ga = 'G-' . strtoupper(substr($ga, 2));
+            }
+            PlatformConfig::set('google_analytics_measurement_id', $ga);
         }
 
         return response()->json(['ok' => true]);
