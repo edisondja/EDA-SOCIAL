@@ -6,6 +6,7 @@ use App\Category;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Web\Concerns\SharesBranding;
 use App\Jobs\GenerateVideoPosterJob;
+use App\Services\HlsPreviewService;
 use App\Support\PlatformConfig;
 use App\Video;
 use Illuminate\Http\Request;
@@ -16,7 +17,7 @@ class ExploreController extends Controller
 {
     use SharesBranding;
 
-    public function index(Request $request)
+    public function index(Request $request, HlsPreviewService $hlsPreviewService)
     {
         $perPage = min(max((int) $request->input('per_page', 20), 1), 50);
 
@@ -83,6 +84,7 @@ class ExploreController extends Controller
             : $q->paginate($perPage)->withQueryString();
 
         $this->queueMissingPostersFromPage($videos);
+        $this->attachCardPreviewUrls($videos, $hlsPreviewService);
 
         if ($request->boolean('fragment')) {
             return response()->view('web.partials.explore-video-cards', compact('videos'));
@@ -117,6 +119,23 @@ class ExploreController extends Controller
             if (Cache::add($key, '1', now()->addMinutes(10))) {
                 GenerateVideoPosterJob::dispatch($video->id);
             }
+        }
+    }
+
+    private function attachCardPreviewUrls($videos, HlsPreviewService $hlsPreviewService): void
+    {
+        $items = method_exists($videos, 'items') ? $videos->items() : [];
+        foreach ($items as $video) {
+            if (!$video instanceof Video) {
+                continue;
+            }
+
+            $previewUrl = (string) $hlsPreviewService->randomSegmentUrlForVideo($video);
+            if ($previewUrl === '') {
+                $previewUrl = trim((string) $video->preview_url);
+            }
+
+            $video->setAttribute('card_preview_url', $previewUrl);
         }
     }
 }

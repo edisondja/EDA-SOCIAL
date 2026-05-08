@@ -121,6 +121,12 @@
       if (!vid) return;
       el.addEventListener('mouseenter', function () {
         el.classList.add('is-preview-active');
+        if (Number.isFinite(vid.duration) && vid.duration > 2) {
+          try {
+            var start = Math.random() * Math.max(0.5, vid.duration - 1.5);
+            vid.currentTime = start;
+          } catch (e) {}
+        }
         vid.play().catch(function () {});
       });
       el.addEventListener('mouseleave', function () {

@@ -6,7 +6,7 @@
             $thumb = $first->url ?? null;
         }
         $thumbUrl = $thumb ? \App\Support\MediaSrc::web($thumb) : '';
-        $preview = $video->preview_url ?: $video->video_url;
+        $preview = $video->card_preview_url ?? $video->preview_url;
         $previewUrl = $preview ? \App\Support\MediaSrc::web($preview) : '';
         $sec = max(0, (int) ($video->duration_seconds ?? 0));
         $dur = sprintf('%02d:%02d', intdiv($sec, 60), $sec % 60);
@@ -19,7 +19,7 @@
                 <div class="edc-card-thumb bg-gradient-to-br from-slate-800 to-slate-950" aria-hidden="true"></div>
             @endif
             @if($previewUrl)
-                <video class="video-card-hover-video edc-card-preview-video pointer-events-none" src="{{ $previewUrl }}" muted loop playsinline preload="metadata" poster="{{ $thumbUrl ?: '' }}"></video>
+                <video class="video-card-hover-video edc-card-preview-video pointer-events-none" src="{{ $previewUrl }}" muted loop playsinline preload="none" poster="{{ $thumbUrl ?: '' }}"></video>
             @endif
             @if(!$thumbUrl)
                 <span class="pointer-events-none absolute left-2 bottom-2 rounded-md bg-slate-900/80 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white backdrop-blur-sm">
