@@ -2,8 +2,10 @@
     @php
         $thumb = $video->thumbnail_url;
         if (!$thumb && $video->relationLoaded('media') && $video->media->count()) {
-            $first = $video->media->sortBy('position')->first();
-            $thumb = $first->url ?? null;
+            $firstImage = $video->media->sortBy('position')->first(function ($mediaItem) {
+                return ($mediaItem->type ?? '') === 'image';
+            });
+            $thumb = $firstImage->url ?? null;
         }
         $thumbUrl = $thumb ? \App\Support\MediaSrc::web($thumb) : '';
         $preview = $video->card_preview_url ?? $video->preview_url;

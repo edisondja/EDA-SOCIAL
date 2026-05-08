@@ -26,6 +26,9 @@ class VideoAdPresentation
         $popCustom = (string) PlatformConfig::getText('video_ad_pop_custom_html', '');
         $popDelay = max(0, min(120000, (int) PlatformConfig::get('video_ad_pop_delay_ms', '3500')));
         $popTitle = PlatformConfig::get('video_ad_pop_title', 'Información');
+        $vastOn = PlatformConfig::get('video_ad_vast_enabled', '0') === '1';
+        $vastTagUrl = trim((string) PlatformConfig::getText('video_ad_vast_tag_url', ''));
+        $vastSkipSeconds = max(0, min(60, (int) PlatformConfig::get('video_ad_vast_skip_seconds', '5')));
 
         $color = self::menuColorHex();
 
@@ -38,6 +41,9 @@ class VideoAdPresentation
             'pop_delay_ms' => $popDelay,
             'pop_title' => $popTitle,
             'pop_body_html' => $popOn ? self::popBody($popTpl, $popCustom, $color) : '',
+            'vast_enabled' => $vastOn && $vastTagUrl !== '',
+            'vast_tag_url' => $vastTagUrl,
+            'vast_skip_seconds' => $vastSkipSeconds,
         ];
     }
 

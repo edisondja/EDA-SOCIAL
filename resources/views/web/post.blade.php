@@ -10,6 +10,9 @@
 @php
     $ads = $videoAds ?? [];
     $posterUrl = $video->thumbnail_url ? \App\Support\MediaSrc::web($video->thumbnail_url) : '';
+    $vastEnabled = !empty($ads['vast_enabled']);
+    $vastTagUrl = (string) ($ads['vast_tag_url'] ?? '');
+    $vastSkipSeconds = (int) ($ads['vast_skip_seconds'] ?? 5);
 @endphp
 <main class="mx-auto max-w-[1100px] px-1 pb-16 sm:px-4">
     <p class="text-sm"><a href="{{ route('explore.index') }}" class="text-link">← Volver al feed</a></p>
@@ -333,6 +336,10 @@
 (function () {
   if (typeof Plyr === 'undefined') return;
   var title = @json($video->title);
+  var vastEnabled = @json($vastEnabled);
+  var vastTagUrl = @json($vastTagUrl);
+  var vastSkipSeconds = @json($vastSkipSeconds);
+  var vastMediaPromise = null;
   var i18n = {
     restart: 'Reiniciar',
     rewind: 'Retroceder {seektime} s',
@@ -359,16 +366,53 @@
     quality: 'Calidad',
     loop: 'Repetir'
   };
+  function detectType(url) {
+    if (/\.webm(\?.*)?$/i.test(url)) return 'video/webm';
+    if (/\.(ogv|ogg)(\?.*)?$/i.test(url)) return 'video/ogg';
+    if (/\.m3u8(\?.*)?$/i.test(url)) return 'application/vnd.apple.mpegurl';
+    return 'video/mp4';
+  }
+
+  function extractVastMediaUrl(vastXml) {
+    try {
+      var doc = new DOMParser().parseFromString(vastXml, 'application/xml');
+      var mediaNodes = doc.querySelectorAll('MediaFile');
+      for (var i = 0; i < mediaNodes.length; i++) {
+        var node = mediaNodes[i];
+        var src = (node.textContent || '').trim();
+        if (!src) continue;
+        if (/^https?:\/\//i.test(src)) return src;
+      }
+    } catch (e) {}
+    return '';
+  }
+
+  function resolveVastMediaUrl() {
+    if (!vastEnabled || !vastTagUrl) return Promise.resolve('');
+    if (!vastMediaPromise) {
+      vastMediaPromise = fetch(vastTagUrl, { credentials: 'omit' })
+        .then(function (r) { return r.ok ? r.text() : ''; })
+        .then(function (xml) { return xml ? extractVastMediaUrl(xml) : ''; })
+        .catch(function () { return ''; });
+    }
+    return vastMediaPromise;
+  }
+
+  function attachHlsIfNeeded(el, sourceUrl) {
+    if (!/\.m3u8(\?.*)?$/i.test(sourceUrl)) return null;
+    if (typeof Hls === 'undefined' || !Hls.isSupported()) return null;
+    var hls = new Hls();
+    hls.loadSource(sourceUrl);
+    hls.attachMedia(el);
+    return hls;
+  }
+
   document.querySelectorAll('.eda-plyr-video').forEach(function (el) {
     var sourceEl = el.querySelector('source');
     var src = sourceEl ? (sourceEl.getAttribute('src') || '') : '';
-    var isHls = /\.m3u8(\?.*)?$/i.test(src);
-    if (isHls && typeof Hls !== 'undefined' && Hls.isSupported()) {
-      var hls = new Hls();
-      hls.loadSource(src);
-      hls.attachMedia(el);
-    }
-    new Plyr(el, {
+    var sourceType = sourceEl ? (sourceEl.getAttribute('type') || detectType(src)) : detectType(src);
+    var hlsInstance = attachHlsIfNeeded(el, src);
+    var player = new Plyr(el, {
       controls: ['play-large', 'play', 'progress', 'current-time', 'mute', 'volume', 'pip', 'fullscreen', 'settings'],
       settings: ['speed'],
       speed: { selected: 1, options: [0.75, 1, 1.25, 1.5, 2] },
@@ -377,6 +421,94 @@
       hideControls: true,
       resetOnEnd: false,
       i18n: i18n
+    });
+
+    if (!vastEnabled || !sourceEl || !src) return;
+
+    var vastPlayed = false;
+    var vastPlaying = false;
+    var skipBtn = null;
+
+    function clearSkipButton() {
+      if (skipBtn && skipBtn.parentNode) {
+        skipBtn.parentNode.removeChild(skipBtn);
+      }
+      skipBtn = null;
+    }
+
+    function restoreMainContent() {
+      clearSkipButton();
+      vastPlaying = false;
+      vastPlayed = true;
+      sourceEl.setAttribute('src', src);
+      sourceEl.setAttribute('type', sourceType);
+      if (hlsInstance) {
+        try { hlsInstance.destroy(); } catch (e) {}
+        hlsInstance = null;
+      }
+      hlsInstance = attachHlsIfNeeded(el, src);
+      el.load();
+      player.play().catch(function () {});
+    }
+
+    function mountSkipButton() {
+      var shell = el.closest('.eda-player-shell');
+      if (!shell) return;
+      shell.style.position = 'relative';
+      skipBtn = document.createElement('button');
+      skipBtn.type = 'button';
+      skipBtn.textContent = 'Omitir anuncio';
+      skipBtn.style.cssText = 'position:absolute;right:12px;top:12px;z-index:20;border:0;border-radius:999px;padding:6px 10px;font-size:12px;font-weight:600;background:rgba(15,23,42,.78);color:#fff;cursor:pointer;';
+      skipBtn.disabled = true;
+      shell.appendChild(skipBtn);
+      var remain = Math.max(0, parseInt(vastSkipSeconds, 10) || 0);
+      if (remain === 0) {
+        skipBtn.disabled = false;
+        return;
+      }
+      skipBtn.textContent = 'Omitir en ' + remain + 's';
+      var t = setInterval(function () {
+        remain -= 1;
+        if (remain <= 0) {
+          clearInterval(t);
+          if (!skipBtn) return;
+          skipBtn.disabled = false;
+          skipBtn.textContent = 'Omitir anuncio';
+          return;
+        }
+        if (skipBtn) skipBtn.textContent = 'Omitir en ' + remain + 's';
+      }, 1000);
+      skipBtn.addEventListener('click', function () {
+        if (skipBtn && skipBtn.disabled) return;
+        restoreMainContent();
+      });
+    }
+
+    player.on('play', function () {
+      if (vastPlayed || vastPlaying) return;
+      vastPlaying = true;
+      player.pause();
+      resolveVastMediaUrl().then(function (adUrl) {
+        if (!adUrl) {
+          vastPlayed = true;
+          vastPlaying = false;
+          player.play().catch(function () {});
+          return;
+        }
+
+        if (hlsInstance) {
+          try { hlsInstance.destroy(); } catch (e) {}
+          hlsInstance = null;
+        }
+
+        sourceEl.setAttribute('src', adUrl);
+        sourceEl.setAttribute('type', detectType(adUrl));
+        mountSkipButton();
+        el.load();
+        el.onended = restoreMainContent;
+        el.onerror = restoreMainContent;
+        player.play().catch(function () { restoreMainContent(); });
+      });
     });
   });
 })();

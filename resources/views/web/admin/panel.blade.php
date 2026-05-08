@@ -221,6 +221,17 @@
         @if($section === 'verificacion')
             <h2>Archivos .txt en la raíz</h2>
             <ul>@foreach($verificationFiles as $f)<li>{{ $f }}</li>@endforeach</ul>
+            @php
+                $sitemapUrl = url('/sitemap.xml');
+            @endphp
+            <div style="margin:12px 0;padding:12px;border:1px solid #e2e8f0;border-radius:10px;background:#f8fafc;">
+                <label class="field-label label-with-icon" for="admin_sitemap_url">@include('web.partials.form-icon', ['name' => 'link']) Enlace del sitemap (Google Search Console)</label>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+                    <input id="admin_sitemap_url" type="text" value="{{ $sitemapUrl }}" readonly style="min-width:280px;flex:1;">
+                    <button type="button" class="btn-secondary label-with-icon" id="admin_copy_sitemap_btn">@include('web.partials.form-icon', ['name' => 'link']) Copiar enlace</button>
+                    <a href="https://search.google.com/search-console" target="_blank" rel="noopener noreferrer" class="btn-primary label-with-icon">@include('web.partials.form-icon', ['name' => 'link']) Ir a Google</a>
+                </div>
+            </div>
             <form method="post" action="{{ route('admin.verification') }}" enctype="multipart/form-data">
                 @csrf
                 <input type="hidden" name="_section" value="{{ $section }}">
@@ -233,6 +244,28 @@
                 <input type="hidden" name="_section" value="{{ $section }}">
                 <button type="submit" class="btn-secondary label-with-icon">@include('web.partials.form-icon', ['name' => 'link']) Generar sitemap.xml en /public</button>
             </form>
+            <script>
+                (function () {
+                    var btn = document.getElementById('admin_copy_sitemap_btn');
+                    var input = document.getElementById('admin_sitemap_url');
+                    if (!btn || !input) return;
+                    btn.addEventListener('click', function () {
+                        var text = input.value || '';
+                        if (!text) return;
+                        if (navigator.clipboard && navigator.clipboard.writeText) {
+                            navigator.clipboard.writeText(text).then(function () {
+                                alert('Enlace del sitemap copiado.');
+                            }).catch(function () {
+                                input.select();
+                                document.execCommand('copy');
+                            });
+                            return;
+                        }
+                        input.select();
+                        document.execCommand('copy');
+                    });
+                })();
+            </script>
         @endif
 
         @if($section === 'usuarios' && $users)

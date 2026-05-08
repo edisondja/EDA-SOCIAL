@@ -181,6 +181,9 @@ class AdminPanelController extends Controller
                 'pop_delay_ms' => max(0, min(120000, (int) PlatformConfig::get('video_ad_pop_delay_ms', '3500'))),
                 'pop_title' => PlatformConfig::get('video_ad_pop_title', 'Información'),
                 'pop_custom_html' => (string) PlatformConfig::getText('video_ad_pop_custom_html', ''),
+                'vast_enabled' => PlatformConfig::get('video_ad_vast_enabled', '0') === '1',
+                'vast_tag_url' => (string) PlatformConfig::getText('video_ad_vast_tag_url', ''),
+                'vast_skip_seconds' => max(0, min(60, (int) PlatformConfig::get('video_ad_vast_skip_seconds', '5'))),
             ];
         }
 
@@ -412,6 +415,7 @@ class AdminPanelController extends Controller
             'video_ad_banner_top_enabled' => $request->has('video_ad_banner_top_enabled'),
             'video_ad_banner_bottom_enabled' => $request->has('video_ad_banner_bottom_enabled'),
             'video_ad_pop_enabled' => $request->has('video_ad_pop_enabled'),
+            'video_ad_vast_enabled' => $request->has('video_ad_vast_enabled'),
         ]);
 
         $data = $request->validate([
@@ -432,6 +436,9 @@ class AdminPanelController extends Controller
             'video_ad_pop_custom_html' => 'nullable|string|max:12000',
             'video_ad_pop_delay_ms' => 'nullable|integer|min:0|max:120000',
             'video_ad_pop_title' => 'nullable|string|max:120',
+            'video_ad_vast_enabled' => 'boolean',
+            'video_ad_vast_tag_url' => 'nullable|url|max:2000',
+            'video_ad_vast_skip_seconds' => 'nullable|integer|min:0|max:60',
         ]);
 
         if (!empty($data['video_ad_banner_top_enabled']) && $data['video_ad_banner_top_mode'] === 'library') {
@@ -473,6 +480,9 @@ class AdminPanelController extends Controller
         PlatformConfig::set('video_ad_pop_delay_ms', (string) max(0, min(120000, (int) ($data['video_ad_pop_delay_ms'] ?? 3500))));
         PlatformConfig::set('video_ad_pop_title', (string) ($data['video_ad_pop_title'] ?? 'Información'));
         PlatformConfig::setText('video_ad_pop_custom_html', VideoAdPresentation::sanitize((string) ($data['video_ad_pop_custom_html'] ?? '')));
+        PlatformConfig::set('video_ad_vast_enabled', !empty($data['video_ad_vast_enabled']) ? '1' : '0');
+        PlatformConfig::setText('video_ad_vast_tag_url', (string) ($data['video_ad_vast_tag_url'] ?? ''));
+        PlatformConfig::set('video_ad_vast_skip_seconds', (string) max(0, min(60, (int) ($data['video_ad_vast_skip_seconds'] ?? 5))));
 
         return redirect()->route('admin.panel', ['section' => 'banners'])->with('status', 'Banners y ventana emergente guardados.');
     }

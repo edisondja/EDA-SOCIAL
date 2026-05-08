@@ -235,6 +235,19 @@
             <textarea name="video_ad_pop_custom_html" rows="4" maxlength="12000" style="width:100%;font-family:monospace;font-size:12px;">{{ old('video_ad_pop_custom_html', $cfg['pop_custom_html'] ?? '') }}</textarea>
         </fieldset>
 
+        <fieldset class="aspecto-card" style="margin-top:14px;">
+            <legend class="aspecto-card-title">Anuncio VAST (pre-roll)</legend>
+            <label class="checkbox-with-icon" style="margin-bottom:10px;display:flex;align-items:center;gap:8px;">
+                <input type="checkbox" name="video_ad_vast_enabled" value="1" {{ old('video_ad_vast_enabled', $cfg['vast_enabled'] ?? false) ? 'checked' : '' }}>
+                <span>Activar anuncio VAST antes del video</span>
+            </label>
+            <label class="field-label" for="video_ad_vast_tag_url">VAST Tag URL</label>
+            <input id="video_ad_vast_tag_url" type="url" name="video_ad_vast_tag_url" value="{{ old('video_ad_vast_tag_url', $cfg['vast_tag_url'] ?? '') }}" maxlength="2000" placeholder="https://ads.example.com/vast.xml" style="width:100%;">
+            <label class="field-label" style="margin-top:10px;" for="video_ad_vast_skip_seconds">Permitir omitir a los (segundos)</label>
+            <input id="video_ad_vast_skip_seconds" type="number" name="video_ad_vast_skip_seconds" value="{{ old('video_ad_vast_skip_seconds', $cfg['vast_skip_seconds'] ?? 5) }}" min="0" max="60" style="width:140px;">
+            <p class="hint-text">Se mostrará un pre-roll simple extraído del VAST. Si la URL falla o no trae media compatible, el video principal continúa normal.</p>
+        </fieldset>
+
         <button type="submit" class="btn-primary label-with-icon" style="margin-top:16px;">@include('web.partials.form-icon', ['name' => 'sparkles']) Guardar zonas y popup</button>
     </form>
 </section>
