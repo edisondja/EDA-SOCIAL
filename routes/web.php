@@ -49,7 +49,7 @@ Route::middleware(['auth', 'admin_or_mod_web'])->prefix('admin')->group(function
         return redirect()->route('admin.panel', ['section' => 'seo']);
     });
     Route::get('/{section}', 'Web\AdminPanelController@show')
-        ->where('section', 'seo|aspecto|banners|integraciones|verificacion|usuarios|videos|reportes|reddit|metricas')
+        ->where('section', 'seo|aspecto|banners|integraciones|verificacion|monitoreo|usuarios|videos|reportes|reddit|metricas')
         ->name('admin.panel');
 
     Route::post('/seo', 'Web\AdminPanelController@updateSeo')->name('admin.seo');

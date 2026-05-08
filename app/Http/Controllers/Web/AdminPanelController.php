@@ -26,7 +26,7 @@ class AdminPanelController extends Controller
 {
     use SharesBranding;
 
-    private const SECTIONS = ['seo', 'aspecto', 'banners', 'integraciones', 'verificacion', 'usuarios', 'videos', 'reportes', 'reddit', 'metricas'];
+    private const SECTIONS = ['seo', 'aspecto', 'banners', 'integraciones', 'verificacion', 'monitoreo', 'usuarios', 'videos', 'reportes', 'reddit', 'metricas'];
 
     public function show(Request $request, $section = 'seo')
     {
@@ -160,6 +160,11 @@ class AdminPanelController extends Controller
                 ->withQueryString();
         }
 
+        $serverMonitor = null;
+        if ($section === 'monitoreo') {
+            $serverMonitor = $this->serverMonitorSnapshot();
+        }
+
         $seoSitemapUrl = '';
         $seoSitemapLinksCount = 0;
         if ($section === 'seo') {
@@ -227,6 +232,7 @@ class AdminPanelController extends Controller
             'adminVideos',
             'videoFilters',
             'videoReports',
+            'serverMonitor',
             'bannerTemplates',
             'bannerSlotConfig',
             'seoSitemapUrl',
@@ -656,6 +662,137 @@ class AdminPanelController extends Controller
             'rabbitmq_host_configured' => $rabbitHost,
             'rabbitmq_laravel_package_installed' => $rabbitPackage,
         ];
+    }
+
+    private function serverMonitorSnapshot(): array
+    {
+        $memory = $this->memorySnapshot();
+        $cpu = $this->cpuSnapshot();
+        $disk = $this->diskSnapshot();
+        $topCpu = $this->topProcesses('cpu');
+        $topMem = $this->topProcesses('mem');
+
+        return [
+            'captured_at' => now()->toDateTimeString(),
+            'memory' => $memory,
+            'cpu' => $cpu,
+            'disk' => $disk,
+            'top_cpu' => $topCpu,
+            'top_mem' => $topMem,
+            'note' => 'Datos estimados en el momento del refresco.',
+        ];
+    }
+
+    private function memorySnapshot(): array
+    {
+        $totalMb = 0;
+        $availMb = 0;
+        try {
+            $raw = @file_get_contents('/proc/meminfo');
+            if (is_string($raw) && $raw !== '') {
+                if (preg_match('/^MemTotal:\s+(\d+)\s+kB/m', $raw, $m)) {
+                    $totalMb = (int) round(((int) $m[1]) / 1024);
+                }
+                if (preg_match('/^MemAvailable:\s+(\d+)\s+kB/m', $raw, $m2)) {
+                    $availMb = (int) round(((int) $m2[1]) / 1024);
+                } elseif (preg_match('/^MemFree:\s+(\d+)\s+kB/m', $raw, $m3)) {
+                    $availMb = (int) round(((int) $m3[1]) / 1024);
+                }
+            }
+        } catch (\Throwable $e) {
+            $totalMb = 0;
+            $availMb = 0;
+        }
+
+        $usedMb = max(0, $totalMb - $availMb);
+        $usedPct = $totalMb > 0 ? (float) round(($usedMb / $totalMb) * 100, 1) : null;
+
+        return [
+            'total_mb' => $totalMb,
+            'used_mb' => $usedMb,
+            'free_mb' => $availMb,
+            'used_pct' => $usedPct,
+        ];
+    }
+
+    private function cpuSnapshot(): array
+    {
+        $load1 = null;
+        $load5 = null;
+        $cores = 1;
+        try {
+            $loads = function_exists('sys_getloadavg') ? @sys_getloadavg() : false;
+            if (is_array($loads) && isset($loads[0], $loads[1])) {
+                $load1 = (float) $loads[0];
+                $load5 = (float) $loads[1];
+            }
+            $coresGuess = (int) trim((string) @shell_exec('nproc 2>/dev/null'));
+            if ($coresGuess > 0) {
+                $cores = $coresGuess;
+            }
+        } catch (\Throwable $e) {
+            $cores = 1;
+        }
+
+        $usagePct = null;
+        if ($load1 !== null && $cores > 0) {
+            $usagePct = (float) round(min(100, max(0, ($load1 / $cores) * 100)), 1);
+        }
+
+        return [
+            'load_1m' => $load1,
+            'load_5m' => $load5,
+            'cores' => $cores,
+            'usage_pct' => $usagePct,
+        ];
+    }
+
+    private function diskSnapshot(): array
+    {
+        $path = base_path();
+        $total = @disk_total_space($path);
+        $free = @disk_free_space($path);
+        $used = ($total !== false && $free !== false) ? ($total - $free) : false;
+
+        $usedPct = null;
+        if ($total && $used !== false && $total > 0) {
+            $usedPct = (float) round(($used / $total) * 100, 1);
+        }
+
+        return [
+            'path' => $path,
+            'total_gb' => $total !== false ? round($total / 1073741824, 2) : null,
+            'used_gb' => $used !== false ? round($used / 1073741824, 2) : null,
+            'free_gb' => $free !== false ? round($free / 1073741824, 2) : null,
+            'used_pct' => $usedPct,
+        ];
+    }
+
+    private function topProcesses(string $sortBy = 'cpu'): array
+    {
+        $sort = $sortBy === 'mem' ? '-%mem' : '-%cpu';
+        $cmd = 'ps -eo pid,comm,%cpu,%mem --sort=' . $sort . ' | head -n 8';
+        $raw = (string) @shell_exec($cmd . ' 2>/dev/null');
+        $lines = array_values(array_filter(array_map('trim', preg_split('/\r\n|\r|\n/', $raw ?: ''))));
+        if (count($lines) <= 1) {
+            return [];
+        }
+
+        $out = [];
+        foreach (array_slice($lines, 1) as $line) {
+            $parts = preg_split('/\s+/', $line, 4);
+            if (!is_array($parts) || count($parts) < 4) {
+                continue;
+            }
+            $out[] = [
+                'pid' => (int) $parts[0],
+                'name' => (string) $parts[1],
+                'cpu' => (float) $parts[2],
+                'mem' => (float) $parts[3],
+            ];
+        }
+
+        return $out;
     }
 
     private function sitemapProgressKey(Request $request): string

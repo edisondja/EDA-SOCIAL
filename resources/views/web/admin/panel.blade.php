@@ -18,6 +18,7 @@
                 'banners' => ['label' => 'Banners', 'icon' => 'tag'],
                 'integraciones' => ['label' => 'Colas', 'icon' => 'queue-list'],
                 'verificacion' => ['label' => 'TXT', 'icon' => 'document-text'],
+                'monitoreo' => ['label' => 'Monitoreo', 'icon' => 'cpu-chip'],
                 'usuarios' => ['label' => 'Usuarios', 'icon' => 'user-group'],
                 'videos' => ['label' => 'Videos', 'icon' => 'film'],
                 'reportes' => ['label' => 'Reportes', 'icon' => 'no-symbol'],
@@ -354,6 +355,85 @@
                 </label>
                 <button type="submit" class="btn-primary label-with-icon">@include('web.partials.form-icon', ['name' => 'sparkles']) Guardar</button>
             </form>
+        @endif
+
+        @if($section === 'monitoreo')
+            @php
+                $mon = $serverMonitor ?? [];
+                $mem = $mon['memory'] ?? [];
+                $cpu = $mon['cpu'] ?? [];
+                $disk = $mon['disk'] ?? [];
+                $topCpu = $mon['top_cpu'] ?? [];
+                $topMem = $mon['top_mem'] ?? [];
+            @endphp
+            <h2>Monitoreo del servidor</h2>
+            <p class="hint-text">Capturado: {{ $mon['captured_at'] ?? now()->toDateTimeString() }} · {{ $mon['note'] ?? '' }}</p>
+            <form method="get" action="{{ route('admin.panel', ['section' => 'monitoreo']) }}" style="margin-bottom:12px;">
+                <button type="submit" class="btn-secondary label-with-icon">@include('web.partials.form-icon', ['name' => 'arrow-path']) Refrescar</button>
+            </form>
+
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin-bottom:14px;">
+                <div class="aspecto-card" style="margin:0;">
+                    <div class="aspecto-card-title">Memoria RAM</div>
+                    <p class="hint-text">Uso: <strong>{{ $mem['used_pct'] !== null ? $mem['used_pct'].'%' : 'N/D' }}</strong></p>
+                    <p class="hint-text">Usada: {{ number_format((float) ($mem['used_mb'] ?? 0), 0, ',', '.') }} MB</p>
+                    <p class="hint-text">Libre: {{ number_format((float) ($mem['free_mb'] ?? 0), 0, ',', '.') }} MB</p>
+                    <p class="hint-text">Total: {{ number_format((float) ($mem['total_mb'] ?? 0), 0, ',', '.') }} MB</p>
+                </div>
+                <div class="aspecto-card" style="margin:0;">
+                    <div class="aspecto-card-title">CPU</div>
+                    <p class="hint-text">Uso estimado: <strong>{{ $cpu['usage_pct'] !== null ? $cpu['usage_pct'].'%' : 'N/D' }}</strong></p>
+                    <p class="hint-text">Load 1m: {{ $cpu['load_1m'] !== null ? $cpu['load_1m'] : 'N/D' }}</p>
+                    <p class="hint-text">Load 5m: {{ $cpu['load_5m'] !== null ? $cpu['load_5m'] : 'N/D' }}</p>
+                    <p class="hint-text">Cores: {{ (int) ($cpu['cores'] ?? 0) }}</p>
+                </div>
+                <div class="aspecto-card" style="margin:0;">
+                    <div class="aspecto-card-title">Disco</div>
+                    <p class="hint-text">Ruta: <code>{{ $disk['path'] ?? base_path() }}</code></p>
+                    <p class="hint-text">Uso: <strong>{{ $disk['used_pct'] !== null ? $disk['used_pct'].'%' : 'N/D' }}</strong></p>
+                    <p class="hint-text">Usado: {{ $disk['used_gb'] !== null ? number_format((float) $disk['used_gb'], 2, ',', '.') : 'N/D' }} GB</p>
+                    <p class="hint-text">Libre: {{ $disk['free_gb'] !== null ? number_format((float) $disk['free_gb'], 2, ',', '.') : 'N/D' }} GB</p>
+                </div>
+            </div>
+
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:12px;">
+                <div class="aspecto-card" style="margin:0;">
+                    <div class="aspecto-card-title">Procesos con más CPU</div>
+                    <table style="width:100%;font-size:12px;">
+                        <thead><tr><th align="left">PID</th><th align="left">Proceso</th><th align="right">%CPU</th><th align="right">%MEM</th></tr></thead>
+                        <tbody>
+                        @forelse($topCpu as $p)
+                            <tr style="border-top:1px solid #e2e8f0;">
+                                <td>{{ $p['pid'] }}</td>
+                                <td>{{ $p['name'] }}</td>
+                                <td align="right">{{ number_format((float) $p['cpu'], 1, ',', '.') }}</td>
+                                <td align="right">{{ number_format((float) $p['mem'], 1, ',', '.') }}</td>
+                            </tr>
+                        @empty
+                            <tr><td colspan="4" class="hint-text">No disponible.</td></tr>
+                        @endforelse
+                        </tbody>
+                    </table>
+                </div>
+                <div class="aspecto-card" style="margin:0;">
+                    <div class="aspecto-card-title">Procesos con más memoria</div>
+                    <table style="width:100%;font-size:12px;">
+                        <thead><tr><th align="left">PID</th><th align="left">Proceso</th><th align="right">%CPU</th><th align="right">%MEM</th></tr></thead>
+                        <tbody>
+                        @forelse($topMem as $p)
+                            <tr style="border-top:1px solid #e2e8f0;">
+                                <td>{{ $p['pid'] }}</td>
+                                <td>{{ $p['name'] }}</td>
+                                <td align="right">{{ number_format((float) $p['cpu'], 1, ',', '.') }}</td>
+                                <td align="right">{{ number_format((float) $p['mem'], 1, ',', '.') }}</td>
+                            </tr>
+                        @empty
+                            <tr><td colspan="4" class="hint-text">No disponible.</td></tr>
+                        @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         @endif
 
         @if($section === 'verificacion')
