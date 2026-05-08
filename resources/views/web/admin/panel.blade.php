@@ -164,8 +164,8 @@
                     var bar = document.getElementById('admin_sitemap_progress_bar');
                     var text = document.getElementById('admin_sitemap_progress_text');
                     var csrf = document.querySelector('meta[name="csrf-token"]');
-                    var statusUrl = @json(route('admin.sitemap_status'));
-                    var postUrl = @json(route('admin.sitemap'));
+                    var statusUrl = @json(route('admin.sitemap_status', [], false));
+                    var postUrl = @json(route('admin.sitemap', [], false));
                     var timer = null;
                     var optimistic = 0;
 
