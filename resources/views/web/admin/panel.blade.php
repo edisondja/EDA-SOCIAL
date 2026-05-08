@@ -96,6 +96,10 @@
                     @include('web.partials.form-icon', ['name' => 'arrow-path', 'size' => 16])
                     <span class="checkbox-with-icon-body checkbox-row" style="margin:0;"><input type="checkbox" name="use_router_links" {{ old('use_router_links', $s('use_router_links','1')) === '1' ? 'checked' : '' }}> Enlaces SPA (React Router) en el feed</span>
                 </label>
+                <label class="checkbox-with-icon">
+                    @include('web.partials.form-icon', ['name' => 'link', 'size' => 16])
+                    <span class="checkbox-with-icon-body checkbox-row" style="margin:0;"><input type="checkbox" name="sitemap_include_all_posts" {{ old('sitemap_include_all_posts', $s('sitemap_include_all_posts','1')) === '1' ? 'checked' : '' }}> Incluir todas las publicaciones en el sitemap (y paginación de explorar)</span>
+                </label>
                 <label class="field-label label-with-icon" for="admin_ga_measurement_id">@include('web.partials.form-icon', ['name' => 'chart-bar']) Google Analytics — ID de medición</label>
                 <input id="admin_ga_measurement_id" type="text" name="google_analytics_measurement_id" value="{{ old('google_analytics_measurement_id', $s('google_analytics_measurement_id')) }}" maxlength="40" placeholder="G-XXXXXXXXXX o UA-XXXXXXX-X" autocomplete="off" autocapitalize="characters">
                 <p class="hint-text" style="margin-top:6px;">Opcional. Pegá el ID de la propiedad GA4 (<strong>G-…</strong>) o Universal Analytics (<strong>UA-…</strong>). Dejalo vacío para no cargar el script en el sitio público.</p>

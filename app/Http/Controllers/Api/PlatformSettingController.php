@@ -95,6 +95,7 @@ class PlatformSettingController extends Controller
             'site_keywords' => 'nullable|string|max:500',
             'public_site_url' => 'nullable|string|max:255',
             'use_router_links' => 'nullable|boolean',
+            'sitemap_include_all_posts' => 'nullable|boolean',
         ];
 
         if ($request->has('google_analytics_measurement_id')) {
@@ -134,6 +135,9 @@ class PlatformSettingController extends Controller
         }
         if (array_key_exists('use_router_links', $data)) {
             PlatformConfig::set('use_router_links', !empty($data['use_router_links']) ? '1' : '0');
+        }
+        if (array_key_exists('sitemap_include_all_posts', $data)) {
+            PlatformConfig::set('sitemap_include_all_posts', !empty($data['sitemap_include_all_posts']) ? '1' : '0');
         }
         if (array_key_exists('google_analytics_measurement_id', $data)) {
             $ga = trim((string) ($data['google_analytics_measurement_id'] ?? ''));

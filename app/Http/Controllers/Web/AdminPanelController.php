@@ -172,9 +172,14 @@ class AdminPanelController extends Controller
                 ->where('is_published', true)
                 ->where('moderation_status', 'active')
                 ->count();
-            $explorePages = (int) ceil($publishedVideos / 20);
-            $explorePages = max(1, min($explorePages, 200));
-            $seoSitemapLinksCount = $explorePages + $publishedVideos;
+            $includeAllPosts = PlatformConfig::get('sitemap_include_all_posts', '1') === '1';
+            if ($includeAllPosts) {
+                $explorePages = (int) ceil($publishedVideos / 20);
+                $explorePages = max(1, min($explorePages, 5000));
+                $seoSitemapLinksCount = $explorePages + $publishedVideos;
+            } else {
+                $seoSitemapLinksCount = 1;
+            }
         }
 
         $bannerTemplates = [];
@@ -457,7 +462,7 @@ class AdminPanelController extends Controller
             'video_ad_pop_delay_ms' => 'nullable|integer|min:0|max:120000',
             'video_ad_pop_title' => 'nullable|string|max:120',
             'video_ad_vast_enabled' => 'boolean',
-            'video_ad_vast_tag_url' => 'nullable|url|max:2000',
+            'video_ad_vast_tag_url' => 'nullable|string|max:12000',
             'video_ad_vast_skip_seconds' => 'nullable|integer|min:0|max:60',
         ]);
 

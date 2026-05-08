@@ -387,8 +387,28 @@
     return '';
   }
 
+  function normalizeAdPayload(payload) {
+    return (payload || '').trim();
+  }
+
+  function extractScriptSrc(payload) {
+    var p = normalizeAdPayload(payload);
+    if (!p) return '';
+    if (/^https?:\/\/.+\.js(\?.*)?$/i.test(p)) return p;
+    var m = p.match(/<script[^>]*src=["']([^"']+)["'][^>]*>\s*<\/script>/i);
+    return m && m[1] ? m[1] : '';
+  }
+
+  function isLikelyScriptPayload(payload) {
+    var p = normalizeAdPayload(payload);
+    if (!p) return false;
+    if (/^https?:\/\/.+\.js(\?.*)?$/i.test(p)) return true;
+    return /<script[\s>]/i.test(p);
+  }
+
   function resolveVastMediaUrl() {
     if (!vastEnabled || !vastTagUrl) return Promise.resolve('');
+    if (isLikelyScriptPayload(vastTagUrl)) return Promise.resolve('');
     if (!vastMediaPromise) {
       vastMediaPromise = fetch(vastTagUrl, { credentials: 'omit' })
         .then(function (r) { return r.ok ? r.text() : ''; })
@@ -428,6 +448,7 @@
     var vastPlayed = false;
     var vastPlaying = false;
     var skipBtn = null;
+    var adOverlay = null;
 
     function clearSkipButton() {
       if (skipBtn && skipBtn.parentNode) {
@@ -436,8 +457,16 @@
       skipBtn = null;
     }
 
+    function clearAdOverlay() {
+      if (adOverlay && adOverlay.parentNode) {
+        adOverlay.parentNode.removeChild(adOverlay);
+      }
+      adOverlay = null;
+    }
+
     function restoreMainContent() {
       clearSkipButton();
+      clearAdOverlay();
       vastPlaying = false;
       vastPlayed = true;
       sourceEl.setAttribute('src', src);
@@ -449,6 +478,28 @@
       hlsInstance = attachHlsIfNeeded(el, src);
       el.load();
       player.play().catch(function () {});
+    }
+
+    function mountScriptOverlay(scriptPayload) {
+      var shell = el.closest('.eda-player-shell');
+      if (!shell) return false;
+      var scriptSrc = extractScriptSrc(scriptPayload);
+      if (!scriptSrc) return false;
+
+      shell.style.position = 'relative';
+      adOverlay = document.createElement('div');
+      adOverlay.style.cssText = 'position:absolute;inset:0;z-index:18;background:#000;display:flex;align-items:center;justify-content:center;overflow:hidden;';
+      var adHost = document.createElement('div');
+      adHost.style.cssText = 'max-width:100%;max-height:100%;display:flex;align-items:center;justify-content:center;';
+      adOverlay.appendChild(adHost);
+      shell.appendChild(adOverlay);
+
+      var adScript = document.createElement('script');
+      adScript.async = true;
+      adScript.src = scriptSrc;
+      adHost.appendChild(adScript);
+
+      return true;
     }
 
     function mountSkipButton() {
@@ -489,6 +540,18 @@
       vastPlaying = true;
       player.pause();
       resolveVastMediaUrl().then(function (adUrl) {
+        if (!adUrl && isLikelyScriptPayload(vastTagUrl)) {
+          var mounted = mountScriptOverlay(vastTagUrl);
+          if (!mounted) {
+            vastPlayed = true;
+            vastPlaying = false;
+            player.play().catch(function () {});
+            return;
+          }
+          mountSkipButton();
+          return;
+        }
+
         if (!adUrl) {
           vastPlayed = true;
           vastPlaying = false;
