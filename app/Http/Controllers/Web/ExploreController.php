@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Web;
 use App\Category;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Web\Concerns\SharesBranding;
+use App\Jobs\GenerateVideoPosterJob;
 use App\Support\PlatformConfig;
 use App\Video;
 use Illuminate\Http\Request;
@@ -81,6 +82,8 @@ class ExploreController extends Controller
             )
             : $q->paginate($perPage)->withQueryString();
 
+        $this->queueMissingPostersFromPage($videos);
+
         if ($request->boolean('fragment')) {
             return response()->view('web.partials.explore-video-cards', compact('videos'));
         }
@@ -98,5 +101,22 @@ class ExploreController extends Controller
     private function useRedisQueryCache(): bool
     {
         return PlatformConfig::get('feature_redis_cache') === '1' && config('cache.default') === 'redis';
+    }
+
+    private function queueMissingPostersFromPage($videos): void
+    {
+        $items = method_exists($videos, 'items') ? $videos->items() : [];
+        foreach ($items as $video) {
+            if (!$video instanceof Video) {
+                continue;
+            }
+            if (trim((string) $video->thumbnail_url) !== '') {
+                continue;
+            }
+            $key = 'poster:queued:video:' . $video->id;
+            if (Cache::add($key, '1', now()->addMinutes(10))) {
+                GenerateVideoPosterJob::dispatch($video->id);
+            }
+        }
     }
 }

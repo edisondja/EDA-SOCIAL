@@ -21,6 +21,11 @@
             @if($previewUrl)
                 <video class="video-card-hover-video edc-card-preview-video pointer-events-none" src="{{ $previewUrl }}" muted loop playsinline preload="metadata" poster="{{ $thumbUrl ?: '' }}"></video>
             @endif
+            @if(!$thumbUrl)
+                <span class="pointer-events-none absolute left-2 bottom-2 rounded-md bg-slate-900/80 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white backdrop-blur-sm">
+                    Generando portada…
+                </span>
+            @endif
             <span class="pointer-events-none absolute bottom-2 right-2 rounded-md bg-black/75 px-2 py-0.5 text-[11px] font-semibold tabular-nums text-white backdrop-blur-sm">{{ $dur }}</span>
             @if($previewUrl)
                 <span class="pointer-events-none absolute left-2 top-2 rounded-md bg-black/55 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white opacity-0 transition-opacity duration-300 group-hover:opacity-100" aria-hidden="true">Hover · vista previa</span>
