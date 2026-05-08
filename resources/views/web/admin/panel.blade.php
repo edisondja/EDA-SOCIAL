@@ -13,24 +13,26 @@
     <nav class="admin-menu mb-6 flex flex-wrap gap-2" aria-label="Secciones">
         @php
             $__adminTabs = [
-                'seo' => 'SEO',
-                'aspecto' => 'Aspecto',
-                'banners' => 'Banners',
-                'integraciones' => 'Colas',
-                'verificacion' => 'TXT',
-                'usuarios' => 'Usuarios',
-                'videos' => 'Videos',
-                'reportes' => 'Reportes',
-                'reddit' => 'Reddit',
+                'seo' => ['label' => 'SEO', 'icon' => 'magnifying-glass'],
+                'aspecto' => ['label' => 'Aspecto', 'icon' => 'swatch'],
+                'banners' => ['label' => 'Banners', 'icon' => 'tag'],
+                'integraciones' => ['label' => 'Colas', 'icon' => 'queue-list'],
+                'verificacion' => ['label' => 'TXT', 'icon' => 'document-text'],
+                'usuarios' => ['label' => 'Usuarios', 'icon' => 'user-group'],
+                'videos' => ['label' => 'Videos', 'icon' => 'film'],
+                'reportes' => ['label' => 'Reportes', 'icon' => 'no-symbol'],
+                'reddit' => ['label' => 'Reddit', 'icon' => 'chat-bubble-left'],
             ];
             if (optional(auth()->user()->role)->name === 'admin') {
-                $__adminTabs['metricas'] = 'Métricas';
+                $__adminTabs['metricas'] = ['label' => 'Métricas', 'icon' => 'chart-bar'];
             }
         @endphp
-        @foreach($__adminTabs as $key => $label)
+        @foreach($__adminTabs as $key => $tab)
             <a href="{{ route('admin.panel', ['section' => $key]) }}"
-               class="admin-tab {{ $section === $key ? 'active' : '' }}">
-                {{ $label }}
+               class="admin-tab {{ $section === $key ? 'active' : '' }}"
+               style="display:inline-flex;align-items:center;gap:6px;">
+                @include('web.partials.form-icon', ['name' => $tab['icon'], 'size' => 14])
+                <span>{{ $tab['label'] }}</span>
             </a>
         @endforeach
     </nav>
@@ -113,6 +115,22 @@
                     <a href="https://search.google.com/search-console" target="_blank" rel="noopener noreferrer" class="btn-primary label-with-icon">@include('web.partials.form-icon', ['name' => 'link']) Enviar a Google</a>
                 </div>
                 <p class="hint-text" style="margin-top:8px;">URLs actualmente incluidas en sitemap: <strong>{{ number_format((int) ($seoSitemapLinksCount ?? 0), 0, ',', '.') }}</strong></p>
+                <form id="admin_seo_generate_sitemap_form" style="margin-top:10px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;">
+                    @csrf
+                    <label class="checkbox-with-icon" style="margin:0;">
+                        <span class="checkbox-with-icon-body checkbox-row" style="margin:0;">
+                            <input type="checkbox" id="admin_seo_generate_all_posts" value="1" {{ old('sitemap_include_all_posts', $s('sitemap_include_all_posts','1')) === '1' ? 'checked' : '' }}>
+                            Generar archivo incluyendo todas las publicaciones
+                        </span>
+                    </label>
+                    <button type="submit" class="btn-secondary label-with-icon" id="admin_seo_generate_sitemap_btn">@include('web.partials.form-icon', ['name' => 'arrow-path']) Generar sitemap.xml ahora</button>
+                </form>
+                <div id="admin_sitemap_progress_wrap" style="display:none;margin-top:10px;">
+                    <div style="height:10px;border-radius:999px;background:#e2e8f0;overflow:hidden;">
+                        <div id="admin_sitemap_progress_bar" style="height:100%;width:0%;background:linear-gradient(90deg,var(--menu-color,#d83a7c),#6366f1);transition:width .3s;"></div>
+                    </div>
+                    <p id="admin_sitemap_progress_text" class="hint-text" style="margin-top:6px;">Generando sitemap… 0%</p>
+                </div>
             </div>
             <script>
                 (function () {
@@ -133,6 +151,91 @@
                         }
                         input.select();
                         document.execCommand('copy');
+                    });
+                })();
+            </script>
+            <script>
+                (function () {
+                    var form = document.getElementById('admin_seo_generate_sitemap_form');
+                    if (!form) return;
+                    var btn = document.getElementById('admin_seo_generate_sitemap_btn');
+                    var includeAll = document.getElementById('admin_seo_generate_all_posts');
+                    var wrap = document.getElementById('admin_sitemap_progress_wrap');
+                    var bar = document.getElementById('admin_sitemap_progress_bar');
+                    var text = document.getElementById('admin_sitemap_progress_text');
+                    var csrf = document.querySelector('meta[name="csrf-token"]');
+                    var statusUrl = @json(route('admin.sitemap_status'));
+                    var postUrl = @json(route('admin.sitemap'));
+                    var timer = null;
+                    var optimistic = 0;
+
+                    function setProgress(pct) {
+                        var n = Math.max(0, Math.min(100, parseInt(pct, 10) || 0));
+                        if (bar) bar.style.width = n + '%';
+                        if (text) text.textContent = 'Generando sitemap… ' + n + '%';
+                    }
+
+                    function stopPolling() {
+                        if (timer) {
+                            clearInterval(timer);
+                            timer = null;
+                        }
+                    }
+
+                    function pollStatus() {
+                        fetch(statusUrl, { headers: { 'Accept': 'application/json' }, credentials: 'same-origin' })
+                            .then(function (r) { return r.ok ? r.json() : null; })
+                            .then(function (data) {
+                                if (!data) return;
+                                var serverProgress = parseInt(data.progress || 0, 10);
+                                optimistic = Math.min(95, Math.max(optimistic + 2, serverProgress));
+                                setProgress(optimistic);
+                                if (data.done) {
+                                    setProgress(100);
+                                    if (text) text.textContent = 'Sitemap generado correctamente (100%).';
+                                    stopPolling();
+                                    if (btn) btn.disabled = false;
+                                }
+                            })
+                            .catch(function () {});
+                    }
+
+                    form.addEventListener('submit', function (e) {
+                        e.preventDefault();
+                        if (!csrf || !csrf.getAttribute('content')) return;
+                        if (btn) btn.disabled = true;
+                        if (wrap) wrap.style.display = 'block';
+                        optimistic = 8;
+                        setProgress(optimistic);
+                        stopPolling();
+                        timer = setInterval(pollStatus, 900);
+
+                        var fd = new FormData();
+                        fd.append('_token', csrf.getAttribute('content'));
+                        fd.append('_section', 'seo');
+                        fd.append('include_all_posts', includeAll && includeAll.checked ? '1' : '0');
+
+                        fetch(postUrl, {
+                            method: 'POST',
+                            headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                            body: fd,
+                            credentials: 'same-origin',
+                        })
+                        .then(function (r) { return r.json().catch(function () { return null; }); })
+                        .then(function (data) {
+                            setProgress(100);
+                            if (text) text.textContent = data && data.ok ? 'Sitemap generado correctamente (100%).' : 'No se pudo generar sitemap.';
+                            stopPolling();
+                            if (btn) btn.disabled = false;
+                            if (data && data.ok) {
+                                setTimeout(function () { window.location.reload(); }, 700);
+                            }
+                        })
+                        .catch(function () {
+                            stopPolling();
+                            if (btn) btn.disabled = false;
+                            if (text) text.textContent = 'No se pudo generar sitemap.';
+                        });
                     });
                 })();
             </script>

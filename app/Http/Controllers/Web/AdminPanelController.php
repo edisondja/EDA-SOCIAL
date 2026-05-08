@@ -19,6 +19,7 @@ use App\Video;
 use App\VideoDailyView;
 use App\VideoReport;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Schema;
 
 class AdminPanelController extends Controller
@@ -297,9 +298,69 @@ class AdminPanelController extends Controller
 
     public function writeSitemap(Request $request)
     {
-        return $this->runApiForm($request, function () use ($request) {
-            return app(ApiPlatform::class)->writeSitemapFile($request);
-        }, 'sitemap.xml generado.');
+        $data = $request->validate([
+            'include_all_posts' => 'nullable|boolean',
+        ]);
+
+        if (array_key_exists('include_all_posts', $data)) {
+            PlatformConfig::set('sitemap_include_all_posts', !empty($data['include_all_posts']) ? '1' : '0');
+        }
+
+        $progressKey = $this->sitemapProgressKey($request);
+        Cache::put($progressKey, 5, now()->addMinutes(10));
+
+        try {
+            Cache::put($progressKey, 25, now()->addMinutes(10));
+            $response = app(ApiPlatform::class)->writeSitemapFile($request);
+            Cache::put($progressKey, 90, now()->addMinutes(10));
+
+            $content = method_exists($response, 'getContent') ? $response->getContent() : '';
+            $json = json_decode((string) $content, true) ?: [];
+            $sitemapUrl = is_array($json) ? (string) ($json['public_url'] ?? url('/sitemap.xml')) : url('/sitemap.xml');
+
+            Cache::put($progressKey, 100, now()->addMinutes(5));
+
+            if ($request->expectsJson() || $request->ajax() || $request->wantsJson()) {
+                return response()->json([
+                    'ok' => true,
+                    'message' => 'sitemap.xml generado.',
+                    'public_url' => $sitemapUrl,
+                ]);
+            }
+
+            return $this->adminSectionRedirect($request)->with('status', 'sitemap.xml generado.');
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            Cache::forget($progressKey);
+            if ($request->expectsJson() || $request->ajax() || $request->wantsJson()) {
+                return response()->json([
+                    'ok' => false,
+                    'message' => 'Error de validación.',
+                    'errors' => $e->errors(),
+                ], 422);
+            }
+
+            return $this->adminSectionRedirect($request)->withErrors($e->errors())->withInput();
+        } catch (\Throwable $e) {
+            Cache::forget($progressKey);
+            if ($request->expectsJson() || $request->ajax() || $request->wantsJson()) {
+                return response()->json([
+                    'ok' => false,
+                    'message' => 'No se pudo generar sitemap.xml.',
+                ], 500);
+            }
+
+            return $this->adminSectionRedirect($request)->withErrors(['admin' => 'No se pudo generar sitemap.xml.'])->withInput();
+        }
+    }
+
+    public function sitemapGenerationStatus(Request $request)
+    {
+        $progress = (int) Cache::get($this->sitemapProgressKey($request), 0);
+
+        return response()->json([
+            'progress' => max(0, min(100, $progress)),
+            'done' => $progress >= 100,
+        ]);
     }
 
     public function importReddit(Request $request, RedditVideoImportService $reddit)
@@ -595,5 +656,15 @@ class AdminPanelController extends Controller
             'rabbitmq_host_configured' => $rabbitHost,
             'rabbitmq_laravel_package_installed' => $rabbitPackage,
         ];
+    }
+
+    private function sitemapProgressKey(Request $request): string
+    {
+        $userId = optional($request->user())->id;
+        if ($userId) {
+            return 'admin:sitemap:progress:user:' . $userId;
+        }
+
+        return 'admin:sitemap:progress:session:' . $request->session()->getId();
     }
 }

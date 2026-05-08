@@ -60,6 +60,9 @@
     if ($logoSrc === '') {
         $logoSrc = asset('images/default-logo.svg');
     }
+    $authUser = auth()->user();
+    $authAvatarSrc = $authUser && !empty($authUser->avatar_url) ? \App\Support\MediaSrc::web($authUser->avatar_url) : '';
+    $authInitial = $authUser ? \Illuminate\Support\Str::upper(\Illuminate\Support\Str::substr((string) $authUser->name, 0, 1)) : '';
 @endphp
 <div class="mx-auto min-h-full max-w-6xl px-4 pb-16 pt-5 sm:px-6 lg:px-8">
     <header class="sticky top-3 z-30 mb-8 rounded-2xl border border-slate-200/80 bg-white/90 px-4 py-3 shadow-soft backdrop-blur-xl sm:px-6">
@@ -90,6 +93,15 @@
                     <a href="{{ route('login') }}" class="eda-btn-primary !px-4 !py-2 !text-sm">Entrar</a>
                 @endauth
             </nav>
+            @auth
+                <a href="{{ route('account.show') }}" class="hidden md:inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full ring-2 ring-slate-200 overflow-hidden bg-slate-100" title="Cuenta">
+                    @if($authAvatarSrc !== '')
+                        <img src="{{ $authAvatarSrc }}" alt="Avatar de {{ $authUser->name }}" class="h-full w-full object-cover">
+                    @else
+                        <span class="text-sm font-bold text-slate-700">{{ $authInitial }}</span>
+                    @endif
+                </a>
+            @endauth
         </div>
     </header>
 
@@ -98,6 +110,19 @@
         <nav class="flex flex-col gap-2" aria-label="Navegación móvil">
             <a href="{{ route('explore.index') }}" class="eda-btn-primary w-full justify-center">Inicio</a>
             @auth
+                <div class="mb-2 flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                    <span class="inline-flex h-10 w-10 items-center justify-center overflow-hidden rounded-full ring-2 ring-white bg-slate-200">
+                        @if($authAvatarSrc !== '')
+                            <img src="{{ $authAvatarSrc }}" alt="Avatar de {{ $authUser->name }}" class="h-full w-full object-cover">
+                        @else
+                            <span class="text-sm font-bold text-slate-700">{{ $authInitial }}</span>
+                        @endif
+                    </span>
+                    <div class="min-w-0">
+                        <p class="truncate text-sm font-semibold text-slate-900">{{ $authUser->name }}</p>
+                        <p class="truncate text-xs text-slate-500">{{ '@' . ($authUser->username ?? 'usuario') }}</p>
+                    </div>
+                </div>
                 <a href="{{ route('publish.create') }}" class="eda-btn-primary js-open-publish-modal w-full justify-center bg-slate-900 hover:!brightness-110">Publicar</a>
                 <a href="{{ route('account.show') }}" class="eda-btn-secondary w-full justify-center">Mi cuenta</a>
                 @if(in_array(optional(auth()->user()->role)->name, ['admin', 'moderator'], true))
