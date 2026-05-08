@@ -77,3 +77,4 @@ Route::middleware(['auth', 'admin_or_mod_web'])->prefix('admin')->group(function
 });
 
 Route::get('/sitemap.xml', 'SitemapController@show');
+Route::get('/robots.txt', 'RobotsController@show');

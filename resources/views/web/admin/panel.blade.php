@@ -101,6 +101,37 @@
                 <p class="hint-text" style="margin-top:6px;">Opcional. Pegá el ID de la propiedad GA4 (<strong>G-…</strong>) o Universal Analytics (<strong>UA-…</strong>). Dejalo vacío para no cargar el script en el sitio público.</p>
                 <button type="submit" class="btn-primary label-with-icon">@include('web.partials.form-icon', ['name' => 'sparkles']) Guardar SEO</button>
             </form>
+            <div style="margin-top:14px;padding:12px;border:1px solid #e2e8f0;border-radius:10px;background:#f8fafc;">
+                <label class="field-label label-with-icon" for="admin_seo_sitemap_url">@include('web.partials.form-icon', ['name' => 'link']) Sitemap para Google</label>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+                    <input id="admin_seo_sitemap_url" type="text" value="{{ $seoSitemapUrl ?? url('/sitemap.xml') }}" readonly style="min-width:280px;flex:1;">
+                    <button type="button" class="btn-secondary label-with-icon" id="admin_seo_copy_sitemap_btn">@include('web.partials.form-icon', ['name' => 'link']) Copiar enlace</button>
+                    <a href="https://search.google.com/search-console" target="_blank" rel="noopener noreferrer" class="btn-primary label-with-icon">@include('web.partials.form-icon', ['name' => 'link']) Enviar a Google</a>
+                </div>
+                <p class="hint-text" style="margin-top:8px;">URLs actualmente incluidas en sitemap: <strong>{{ number_format((int) ($seoSitemapLinksCount ?? 0), 0, ',', '.') }}</strong></p>
+            </div>
+            <script>
+                (function () {
+                    var btn = document.getElementById('admin_seo_copy_sitemap_btn');
+                    var input = document.getElementById('admin_seo_sitemap_url');
+                    if (!btn || !input) return;
+                    btn.addEventListener('click', function () {
+                        var text = input.value || '';
+                        if (!text) return;
+                        if (navigator.clipboard && navigator.clipboard.writeText) {
+                            navigator.clipboard.writeText(text).then(function () {
+                                alert('Enlace del sitemap copiado.');
+                            }).catch(function () {
+                                input.select();
+                                document.execCommand('copy');
+                            });
+                            return;
+                        }
+                        input.select();
+                        document.execCommand('copy');
+                    });
+                })();
+            </script>
         @endif
 
         @if($section === 'aspecto')

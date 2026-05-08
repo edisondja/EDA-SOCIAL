@@ -4,7 +4,35 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
+    @php
+        $metaTitle = trim((string) $__env->yieldContent('title', ($branding['site_name'] ?? 'EDA_SOCIAL')));
+        $metaDescription = trim((string) ($branding['site_description'] ?? 'Plataforma de video social.'));
+        $metaKeywords = trim((string) (\App\Support\PlatformConfig::get('site_keywords', 'videos, entretenimiento, tendencias')));
+        $canonicalUrl = url()->current();
+        $metaLogo = $branding['logo_url'] ?? null;
+        $metaImage = $metaLogo ? \App\Support\MediaSrc::web($metaLogo) : asset('images/default-logo.svg');
+    @endphp
     <title>@yield('title', ($branding['site_name'] ?? 'EDA_SOCIAL'))</title>
+    <meta name="description" content="{{ $metaDescription }}">
+    <meta name="keywords" content="{{ $metaKeywords }}">
+    <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1">
+    <link rel="canonical" href="{{ $canonicalUrl }}">
+
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="{{ $branding['site_name'] ?? 'EDA_SOCIAL' }}">
+    <meta property="og:title" content="{{ $metaTitle }}">
+    <meta property="og:description" content="{{ $metaDescription }}">
+    <meta property="og:url" content="{{ $canonicalUrl }}">
+    @if($metaImage !== '')
+        <meta property="og:image" content="{{ $metaImage }}">
+    @endif
+
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="{{ $metaTitle }}">
+    <meta name="twitter:description" content="{{ $metaDescription }}">
+    @if($metaImage !== '')
+        <meta name="twitter:image" content="{{ $metaImage }}">
+    @endif
     @php
         $__gaId = '';
         try {

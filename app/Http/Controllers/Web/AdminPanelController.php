@@ -159,6 +159,24 @@ class AdminPanelController extends Controller
                 ->withQueryString();
         }
 
+        $seoSitemapUrl = '';
+        $seoSitemapLinksCount = 0;
+        if ($section === 'seo') {
+            $base = rtrim((string) (PlatformConfig::get('public_site_url') ?: config('app.url')), '/');
+            if ($base === '') {
+                $base = rtrim((string) config('app.url'), '/');
+            }
+            $seoSitemapUrl = $base . '/sitemap.xml';
+
+            $publishedVideos = (int) Video::query()
+                ->where('is_published', true)
+                ->where('moderation_status', 'active')
+                ->count();
+            $explorePages = (int) ceil($publishedVideos / 20);
+            $explorePages = max(1, min($explorePages, 200));
+            $seoSitemapLinksCount = $explorePages + $publishedVideos;
+        }
+
         $bannerTemplates = [];
         $bannerSlotConfig = [];
         if ($section === 'banners') {
@@ -204,7 +222,9 @@ class AdminPanelController extends Controller
             'videoFilters',
             'videoReports',
             'bannerTemplates',
-            'bannerSlotConfig'
+            'bannerSlotConfig',
+            'seoSitemapUrl',
+            'seoSitemapLinksCount'
         ));
     }
 

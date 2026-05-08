@@ -1,2 +1,17 @@
 User-agent: *
+Allow: /
+
+Disallow: /admin
+Disallow: /login
+Disallow: /logout
+Disallow: /cuenta
+Disallow: /publicar
+Disallow: /api
+
+Disallow: /*?*search=
+Disallow: /*?*hashtag=
+Disallow: /*?*categoria=
+
+Sitemap: /sitemap.xml
+User-agent: *
 Disallow:
