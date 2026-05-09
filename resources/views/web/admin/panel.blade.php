@@ -341,6 +341,151 @@
 
         @if($section === 'integraciones')
             <h2>Colas e integraciones</h2>
+            @php
+                $__connRedis = $integrationStatus['redis'] ?? [];
+                $__connRabbit = $integrationStatus['rabbitmq'] ?? [];
+                $__badgeOk = 'display:inline-block;padding:2px 10px;border-radius:9999px;font-size:11px;font-weight:700;background:#dcfce7;color:#166534;';
+                $__badgeBad = 'display:inline-block;padding:2px 10px;border-radius:9999px;font-size:11px;font-weight:700;background:#fee2e2;color:#991b1b;';
+                $__badgeNeutral = 'display:inline-block;padding:2px 10px;border-radius:9999px;font-size:11px;font-weight:700;background:#e2e8f0;color:#475569;';
+            @endphp
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;margin-bottom:16px;">
+                <div class="aspecto-card" style="margin:0;">
+                    <div class="aspecto-card-title" style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
+                        <span>Redis — caché</span>
+                        @if(($__connRedis['reachable'] ?? null) === true)
+                            <span style="{{ $__badgeOk }}">Conectado</span>
+                        @elseif(($__connRedis['reachable'] ?? null) === false)
+                            <span style="{{ $__badgeBad }}">No conectado</span>
+                        @else
+                            <span style="{{ $__badgeNeutral }}">{{ $__connRedis['label'] ?? 'N/D' }}</span>
+                        @endif
+                    </div>
+                    <p class="hint-text" style="margin:8px 0 0;font-size:12px;line-height:1.45;">{{ $__connRedis['detail'] ?? '' }}</p>
+                    <p class="hint-text" style="margin:6px 0 0;font-size:11px;">Driver de caché actual: <strong>{{ $integrationStatus['cache_driver'] ?? '—' }}</strong>@if(!empty($__connRedis['uses_redis_for_cache'])) · La app usa Redis para caché.@else · La app <strong>no</strong> usa Redis para caché (solo se prueba conectividad si hay REDIS_HOST).@endif Extensión phpredis: <strong>{{ !empty($integrationStatus['redis_extension']) ? 'sí' : 'no' }}</strong></p>
+                </div>
+                <div class="aspecto-card" style="margin:0;">
+                    <div class="aspecto-card-title" style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
+                        <span>RabbitMQ — broker</span>
+                        @if(($__connRabbit['amqp_reachable'] ?? false) && ($__connRabbit['management_ok'] ?? false))
+                            <span style="{{ $__badgeOk }}">Conectado</span>
+                        @elseif(($__connRabbit['amqp_reachable'] ?? false) || ($__connRabbit['management_ok'] ?? false))
+                            <span style="{{ $__badgeNeutral }}">{{ $__connRabbit['label'] ?? 'Parcial' }}</span>
+                        @elseif(($__connRabbit['amqp_reachable'] ?? null) === false && ($__connRabbit['management_ok'] ?? null) === false)
+                            <span style="{{ $__badgeBad }}">No conectado</span>
+                        @else
+                            <span style="{{ $__badgeNeutral }}">{{ $__connRabbit['label'] ?? 'N/D' }}</span>
+                        @endif
+                    </div>
+                    <p class="hint-text" style="margin:8px 0 0;font-size:12px;line-height:1.45;">{{ $__connRabbit['detail'] ?? '' }}</p>
+                    <p class="hint-text" style="margin:6px 0 0;font-size:11px;">Cola Laravel: <strong>{{ $integrationStatus['queue_connection'] ?? '—' }}</strong> (driver de jobs; puede ser <code>database</code> aunque Rabbit esté instalado).</p>
+                </div>
+            </div>
+            @php
+                $__rabbitMgmtUi = rtrim((string) env('RABBITMQ_MANAGEMENT_URL', ''), '/');
+                if ($__rabbitMgmtUi === '' && trim((string) env('RABBITMQ_HOST', '')) !== '') {
+                    $__rabbitMgmtUi = 'http://' . trim((string) env('RABBITMQ_HOST')) . ':' . (int) env('RABBITMQ_MANAGEMENT_PORT', 15672);
+                }
+            @endphp
+
+            <section class="admin-queue-live mb-6 rounded-xl border border-slate-200/90 bg-white p-4 shadow-soft ring-1 ring-slate-100" aria-labelledby="admin-queue-live-heading">
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                    <h3 id="admin-queue-live-heading" class="text-base font-bold text-slate-900">Colas en tiempo real</h3>
+                    <span id="admin-queue-live-updated" class="text-xs text-slate-500"></span>
+                </div>
+                @if($__rabbitMgmtUi !== '')
+                    <p class="mt-2 flex flex-wrap items-center gap-2" style="margin-top:10px;">
+                        <a href="{{ $__rabbitMgmtUi }}/" target="_blank" rel="noopener noreferrer" class="btn-secondary label-with-icon" style="display:inline-flex;align-items:center;gap:6px;text-decoration:none;">
+                            @include('web.partials.form-icon', ['name' => 'link', 'size' => 14])
+                            Panel web RabbitMQ (management)
+                        </a>
+                        <span class="text-xs text-slate-500 break-all">{{ $__rabbitMgmtUi }}/</span>
+                    </p>
+                @else
+                    <p class="hint-text mt-2" style="margin-top:8px;">Para mostrar el enlace al plugin web, definí <code>RABBITMQ_MANAGEMENT_URL</code> o <code>RABBITMQ_HOST</code> (+ puerto <code>RABBITMQ_MANAGEMENT_PORT</code>, por defecto 15672) en <code>.env</code>.</p>
+                @endif
+                <p class="hint-text mt-1" style="margin-top:6px;">En <strong>RabbitMQ</strong>: “en proceso” = mensajes sin acuse (<code>unacked</code>) que el worker está ejecutando. “En espera” = listos para consumir. Con <strong>database</strong>: “en proceso” = filas con <code>reserved_at</code> no nulo.</p>
+                <p id="admin-queue-live-meta" class="hint-text mt-1 text-xs" style="margin-top:6px;"></p>
+                <p id="admin-queue-live-error" class="mt-2 hidden text-sm text-red-600" role="alert"></p>
+                <div class="mt-3 overflow-x-auto">
+                    <table class="w-full min-w-[420px] border-collapse text-sm" id="admin-queue-live-table">
+                        <thead>
+                            <tr class="border-b border-slate-200 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                <th class="py-2 pr-3">Cola</th>
+                                <th class="py-2 pr-3 text-right">En espera</th>
+                                <th class="py-2 pr-3 text-right">En proceso</th>
+                                <th class="py-2 pr-3 text-right">Consumidores</th>
+                                <th class="py-2 text-right">Estado</th>
+                            </tr>
+                        </thead>
+                        <tbody id="admin-queue-live-tbody"></tbody>
+                    </table>
+                </div>
+            </section>
+            <script>
+            (function () {
+                var url = @json(route('admin.queue_status', [], false));
+                var tbody = document.getElementById('admin-queue-live-tbody');
+                var errEl = document.getElementById('admin-queue-live-error');
+                var metaEl = document.getElementById('admin-queue-live-meta');
+                var updatedEl = document.getElementById('admin-queue-live-updated');
+                if (!tbody || !url) return;
+
+                function esc(s) {
+                    var d = document.createElement('div');
+                    d.textContent = s;
+                    return d.innerHTML;
+                }
+
+                function render(data) {
+                    if (errEl) {
+                        if (data.error) {
+                            errEl.textContent = data.error;
+                            errEl.classList.remove('hidden');
+                        } else {
+                            errEl.textContent = '';
+                            errEl.classList.add('hidden');
+                        }
+                    }
+                    if (metaEl) {
+                        metaEl.textContent = 'Driver: ' + (data.driver || '—') + ' · Fuente: ' + (data.source || '—') + ' · Jobs fallidos (tabla): ' + (data.failed_jobs != null ? data.failed_jobs : '—');
+                    }
+                    if (updatedEl) {
+                        updatedEl.textContent = data.updated_at ? ('Actualizado: ' + data.updated_at) : '';
+                    }
+                    var rows = data.queues || [];
+                    if (!rows.length) {
+                        tbody.innerHTML = '<tr><td colspan="5" class="py-4 text-slate-500">Sin datos de colas (o lista vacía).</td></tr>';
+                        return;
+                    }
+                    tbody.innerHTML = rows.map(function (q) {
+                        var cons = q.consumers != null ? String(q.consumers) : '—';
+                        var st = q.state != null ? q.state : '—';
+                        return '<tr class="border-t border-slate-100">' +
+                            '<td class="py-2 pr-3 font-medium text-slate-800">' + esc(q.name || '') + '</td>' +
+                            '<td class="py-2 pr-3 text-right tabular-nums">' + esc(String(q.waiting != null ? q.waiting : 0)) + '</td>' +
+                            '<td class="py-2 pr-3 text-right tabular-nums font-semibold text-slate-900">' + esc(String(q.processing != null ? q.processing : 0)) + '</td>' +
+                            '<td class="py-2 pr-3 text-right tabular-nums">' + esc(cons) + '</td>' +
+                            '<td class="py-2 text-right text-xs text-slate-600">' + esc(st) + '</td>' +
+                            '</tr>';
+                    }).join('');
+                }
+
+                function tick() {
+                    fetch(url, { headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' } })
+                        .then(function (r) { return r.json(); })
+                        .then(render)
+                        .catch(function () {
+                            if (errEl) {
+                                errEl.textContent = 'No se pudo cargar el estado de colas.';
+                                errEl.classList.remove('hidden');
+                            }
+                        });
+                }
+                tick();
+                setInterval(tick, 2800);
+            })();
+            </script>
+
             <pre class="admin-json-preview" role="region" aria-label="Estado de integraciones">@json($integrationStatus, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)</pre>
             <form method="post" action="{{ route('admin.integrations') }}">
                 @csrf
@@ -355,6 +500,59 @@
                 </label>
                 <button type="submit" class="btn-primary label-with-icon">@include('web.partials.form-icon', ['name' => 'sparkles']) Guardar</button>
             </form>
+
+            <details class="admin-rabbitmq-docs" style="margin-top:18px;border:1px solid #e2e8f0;border-radius:10px;background:#f8fafc;padding:12px 14px;">
+                <summary class="cursor-pointer text-sm font-semibold text-slate-800" style="cursor:pointer;">RabbitMQ — instalación y usuario para colas (HLS / portadas)</summary>
+                <div class="mt-3 space-y-3 text-sm text-slate-700" style="margin-top:12px;">
+                    <p class="hint-text" style="margin:0;">Ejecutá estos comandos en el <strong>servidor</strong> (Ubuntu/Debian) como root o con <code>sudo</code>. Cambiá la contraseña de ejemplo por una segura.</p>
+
+                    <p class="font-semibold text-slate-900" style="margin:10px 0 4px;">1) Instalar RabbitMQ</p>
+                    <pre class="admin-json-preview" style="margin:0;font-size:11px;white-space:pre-wrap;">sudo apt update
+sudo apt install -y rabbitmq-server
+sudo systemctl enable --now rabbitmq-server</pre>
+
+                    <p class="font-semibold text-slate-900" style="margin:10px 0 4px;">2) Panel web de administración (API de métricas / colas)</p>
+                    <pre class="admin-json-preview" style="margin:0;font-size:11px;white-space:pre-wrap;">sudo rabbitmq-plugins enable rabbitmq_management</pre>
+                    <p class="hint-text" style="margin:4px 0 0;">Por defecto: <code>http://IP-DEL-SERVIDOR:15672</code> — usuario <code>guest</code> solo funciona desde localhost.</p>
+
+                    <p class="font-semibold text-slate-900" style="margin:10px 0 4px;">3) Virtual host dedicado (opcional, recomendado)</p>
+                    <pre class="admin-json-preview" style="margin:0;font-size:11px;white-space:pre-wrap;">sudo rabbitmqctl add_vhost eda_social</pre>
+
+                    <p class="font-semibold text-slate-900" style="margin:10px 0 4px;">4) Usuario y contraseña para Laravel / workers</p>
+                    <pre class="admin-json-preview" style="margin:0;font-size:11px;white-space:pre-wrap;">sudo rabbitmqctl add_user eda_worker 'CAMBIA_ESTA_CONTRASENA_SEGURA'
+sudo rabbitmqctl set_permissions -p eda_social eda_worker ".*" ".*" ".*"
+sudo rabbitmqctl set_user_tags eda_worker management</pre>
+                    <p class="hint-text" style="margin:4px 0 0;">Si no usás vhost propio, usá <code>/</code> en lugar de <code>eda_social</code>:<br><code>sudo rabbitmqctl set_permissions -p / eda_worker ".*" ".*" ".*"</code></p>
+
+                    <p class="font-semibold text-slate-900" style="margin:10px 0 4px;">5) Comprobar usuarios y colas</p>
+                    <pre class="admin-json-preview" style="margin:0;font-size:11px;white-space:pre-wrap;">sudo rabbitmqctl list_users
+sudo rabbitmqctl list_vhosts
+sudo rabbitmqctl list_queues -p eda_social</pre>
+
+                    <p class="font-semibold text-slate-900" style="margin:10px 0 4px;">6) Variables en <code>.env</code> del backend (ejemplo)</p>
+                    <pre class="admin-json-preview" style="margin:0;font-size:11px;white-space:pre-wrap;">QUEUE_CONNECTION=rabbitmq
+RABBITMQ_HOST=127.0.0.1
+RABBITMQ_PORT=5672
+RABBITMQ_USER=eda_worker
+RABBITMQ_PASSWORD=CAMBIA_ESTA_CONTRASENA_SEGURA
+RABBITMQ_VHOST=eda_social
+# API del panel (métricas en vivo; mismo usuario o uno solo-lectura)
+RABBITMQ_MANAGEMENT_URL=http://127.0.0.1:15672
+RABBITMQ_MANAGEMENT_USER=eda_worker
+RABBITMQ_MANAGEMENT_PASSWORD=CAMBIA_ESTA_CONTRASENA_SEGURA
+RABBITMQ_ADMIN_QUEUE_NAMES=media,default</pre>
+
+                    <p class="font-semibold text-slate-900" style="margin:10px 0 4px;">7) Worker de Laravel (cola <code>media</code> — HLS y portadas)</p>
+                    <pre class="admin-json-preview" style="margin:0;font-size:11px;white-space:pre-wrap;">cd /var/www/ruta-a-tu/backend &amp;&amp; php artisan queue:work rabbitmq --queue=media,default --tries=3 --timeout=1200</pre>
+
+                    <p class="font-semibold text-slate-900" style="margin:10px 0 4px;">Alternativa: Docker (desarrollo)</p>
+                    <pre class="admin-json-preview" style="margin:0;font-size:11px;white-space:pre-wrap;">docker run -d --name rabbitmq -p 5672:5672 -p 15672:15672 \
+  -e RABBITMQ_DEFAULT_USER=eda_worker \
+  -e RABBITMQ_DEFAULT_PASS=CAMBIA_ESTA_CONTRASENA_SEGURA \
+  rabbitmq:3-management</pre>
+                    <p class="hint-text" style="margin:4px 0 0;">En Docker el vhost por defecto es <code>/</code> (<code>RABBITMQ_VHOST=/</code>).</p>
+                </div>
+            </details>
         @endif
 
         @if($section === 'monitoreo')
@@ -578,7 +776,7 @@
                     </div>
                     <button type="submit" class="btn-primary">Generar con ffmpeg</button>
                 </form>
-                <p class="hint-text" style="margin:10px 0 0;">CLI equivalente: <code style="font-size:11px;">php artisan videos:generate-previews --limit=30</code></p>
+                <p class="hint-text" style="margin:10px 0 0;">CLI: solo portadas JPG — <code style="font-size:11px;">php artisan videos:generate-posters --limit=40</code> · poster + clip hover — <code style="font-size:11px;">php artisan videos:generate-previews --limit=30</code></p>
             </section>
 
             <table class="admin-users-table admin-videos-table" style="width:100%;table-layout:fixed;">

@@ -15,6 +15,7 @@ use App\VideoRating;
 use App\VideoReport;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Str;
 
 class PostController extends Controller
 {
@@ -148,6 +149,11 @@ class PostController extends Controller
                 ->value('score');
         }
 
+        $seoOgImage = $video->openGraphImageAbsolute();
+        $rawDesc = trim(preg_replace('/\s+/', ' ', strip_tags((string) ($video->description ?? ''))));
+        $seoOgDescription = $rawDesc !== '' ? Str::limit($rawDesc, 300, '…') : '';
+        $seoOgType = 'article';
+
         return view('web.post', compact(
             'video',
             'related',
@@ -156,7 +162,10 @@ class PostController extends Controller
             'videoAds',
             'ratingCount',
             'ratingAvg',
-            'userRating'
+            'userRating',
+            'seoOgImage',
+            'seoOgDescription',
+            'seoOgType'
         ));
     }
 
@@ -324,19 +333,19 @@ class PostController extends Controller
 
         $key = 'hls:queued:video:' . $video->id;
         if (Cache::add($key, '1', now()->addMinutes(10))) {
-            GenerateVideoHlsJob::dispatch($video->id);
+            GenerateVideoHlsJob::dispatch($video->id)->afterResponse();
         }
     }
 
     private function queuePosterGenerationIfNeeded(Video $video): void
     {
-        if (trim((string) $video->thumbnail_url) !== '') {
+        if (!$video->needsPosterImageGeneration()) {
             return;
         }
 
         $key = 'poster:queued:video:' . $video->id;
         if (Cache::add($key, '1', now()->addMinutes(10))) {
-            GenerateVideoPosterJob::dispatch($video->id);
+            GenerateVideoPosterJob::dispatch($video->id)->afterResponse();
         }
     }
 }

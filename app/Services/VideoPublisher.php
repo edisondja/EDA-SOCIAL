@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Hashtag;
+use App\Jobs\GenerateVideoPosterJob;
 use App\Jobs\ProcessVideoMediaJob;
 use App\User;
 use App\Video;
@@ -68,6 +69,10 @@ class VideoPublisher
         }
 
         ProcessVideoMediaJob::dispatch($video->id);
+
+        if ($video->needsPosterImageGeneration()) {
+            GenerateVideoPosterJob::dispatch($video->id)->afterResponse();
+        }
 
         return $video->load('channel', 'author', 'media', 'categories', 'hashtags');
     }

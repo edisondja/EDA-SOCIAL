@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# Ejecuta artisan con PHP >= 8.4 (evita el PHP 7.2 por defecto en algunos Mac).
+# Uso: ./art migrate   |   EDA_PHP_BIN=/ruta/a/php ./art serve
+set -euo pipefail
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+candidates=(
+  "${EDA_PHP_BIN:-}"
+  "/opt/homebrew/opt/php@8.5/bin/php"
+  "/opt/homebrew/opt/php@8.4/bin/php"
+  "/usr/local/opt/php@8.5/bin/php"
+  "/usr/local/opt/php@8.4/bin/php"
+)
+for bin in "${candidates[@]}"; do
+  [[ -z "$bin" || ! -x "$bin" ]] && continue
+  ver="$("$bin" -r 'echo PHP_VERSION_ID;' 2>/dev/null || echo 0)"
+  if [[ "${ver:-0}" -ge 80400 ]]; then
+    exec "$bin" "$DIR/artisan" "$@"
+  fi
+done
+echo "EDA_SOCIAL: se requiere PHP >= 8.4. Instalá p. ej.: brew install php@8.5" >&2
+echo "Luego: export PATH=\"/opt/homebrew/opt/php@8.5/bin:\$PATH\" (o definí EDA_PHP_BIN)." >&2
+command -v php >/dev/null && php -v >&2 || true
+exit 1

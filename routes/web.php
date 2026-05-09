@@ -60,6 +60,9 @@ Route::middleware(['auth', 'admin_or_mod_web'])->prefix('admin')->group(function
     Route::post('/verificacion', 'Web\AdminPanelController@uploadVerification')->name('admin.verification');
     Route::post('/sitemap', 'Web\AdminPanelController@writeSitemap')->name('admin.sitemap');
     Route::get('/sitemap/status', 'Web\AdminPanelController@sitemapGenerationStatus')->name('admin.sitemap_status');
+    Route::get('/colas/estado', 'Web\AdminPanelController@queueMonitorStatus')
+        ->middleware('throttle:60,1')
+        ->name('admin.queue_status');
     Route::post('/reddit/importar', 'Web\AdminPanelController@importReddit')->name('admin.reddit');
     Route::post('/usuarios/{user}/rol', 'Web\AdminPanelController@updateUserRole')->name('admin.user_role');
     Route::post('/videos/{video}/bloquear', 'Web\AdminPanelController@blockVideo')->name('admin.video_block');

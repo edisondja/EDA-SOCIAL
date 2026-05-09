@@ -9,6 +9,8 @@ use App\Http\Controllers\Controller;
 use App\Http\Controllers\Web\Concerns\SharesBranding;
 use App\Jobs\GenerateVideoHlsJob;
 use App\Role;
+use App\Services\IntegrationConnectivityService;
+use App\Services\QueueMonitorService;
 use App\Services\RedditVideoImportService;
 use App\Services\VideoPreviewGenerationService;
 use App\Support\BannerTemplateRegistry;
@@ -369,6 +371,11 @@ class AdminPanelController extends Controller
         ]);
     }
 
+    public function queueMonitorStatus(Request $request, QueueMonitorService $queueMonitorService)
+    {
+        return response()->json($queueMonitorService->snapshot());
+    }
+
     public function importReddit(Request $request, RedditVideoImportService $reddit)
     {
         return $this->runApiForm($request, function () use ($request, $reddit) {
@@ -652,7 +659,29 @@ class AdminPanelController extends Controller
         $redisExt = extension_loaded('redis') || extension_loaded('Redis');
         $redisHost = (bool) env('REDIS_HOST');
         $rabbitHost = (bool) env('RABBITMQ_HOST');
-        $rabbitPackage = class_exists(\VladimirYuldashev\LaravelQueueRabbitMQ\Queue\Connectors\RabbitMQConnector::class);
+        $rabbitMgmt = (bool) env('RABBITMQ_MANAGEMENT_URL') || (bool) env('RABBITMQ_HOST');
+
+        $snapshots = [];
+        try {
+            $snapshots = app(IntegrationConnectivityService::class)->snapshots();
+        } catch (\Throwable $e) {
+            $snapshots = [
+                'redis' => [
+                    'uses_redis_for_cache' => $cache === 'redis',
+                    'configured' => $redisHost,
+                    'reachable' => null,
+                    'label' => 'Error',
+                    'detail' => $e->getMessage(),
+                ],
+                'rabbitmq' => [
+                    'host_configured' => $rabbitHost,
+                    'amqp_reachable' => null,
+                    'management_ok' => null,
+                    'label' => 'Error',
+                    'detail' => $e->getMessage(),
+                ],
+            ];
+        }
 
         return [
             'queue_connection' => $queue,
@@ -660,7 +689,9 @@ class AdminPanelController extends Controller
             'redis_extension' => $redisExt,
             'redis_host_configured' => $redisHost,
             'rabbitmq_host_configured' => $rabbitHost,
-            'rabbitmq_laravel_package_installed' => $rabbitPackage,
+            'rabbitmq_management_reachable' => $rabbitMgmt,
+            'redis' => $snapshots['redis'] ?? [],
+            'rabbitmq' => $snapshots['rabbitmq'] ?? [],
         ];
     }
 

@@ -7,10 +7,20 @@
     @php
         $metaTitle = trim((string) $__env->yieldContent('title', ($branding['site_name'] ?? 'EDA_SOCIAL')));
         $metaDescription = trim((string) ($branding['site_description'] ?? 'Plataforma de video social.'));
+        if (isset($seoOgDescription) && is_string($seoOgDescription) && trim($seoOgDescription) !== '') {
+            $metaDescription = trim($seoOgDescription);
+        }
         $metaKeywords = trim((string) (\App\Support\PlatformConfig::get('site_keywords', 'videos, entretenimiento, tendencias')));
         $canonicalUrl = url()->current();
         $metaLogo = $branding['logo_url'] ?? null;
         $metaImage = $metaLogo ? \App\Support\MediaSrc::web($metaLogo) : asset('images/default-logo.svg');
+        if (isset($seoOgImage) && is_string($seoOgImage) && trim($seoOgImage) !== '') {
+            $metaImage = trim($seoOgImage);
+        }
+        if ($metaImage !== '' && ! preg_match('#^https?://#i', $metaImage)) {
+            $metaImage = url($metaImage);
+        }
+        $metaOgType = (isset($seoOgType) && is_string($seoOgType) && trim($seoOgType) !== '') ? trim($seoOgType) : 'website';
     @endphp
     <title>@yield('title', ($branding['site_name'] ?? 'EDA_SOCIAL'))</title>
     <meta name="description" content="{{ $metaDescription }}">
@@ -18,7 +28,7 @@
     <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1">
     <link rel="canonical" href="{{ $canonicalUrl }}">
 
-    <meta property="og:type" content="website">
+    <meta property="og:type" content="{{ $metaOgType }}">
     <meta property="og:site_name" content="{{ $branding['site_name'] ?? 'EDA_SOCIAL' }}">
     <meta property="og:title" content="{{ $metaTitle }}">
     <meta property="og:description" content="{{ $metaDescription }}">

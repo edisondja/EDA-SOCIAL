@@ -7,7 +7,6 @@ use App\Http\Controllers\Controller;
 use App\Http\Controllers\Web\Concerns\SharesBranding;
 use App\Jobs\GenerateVideoPosterJob;
 use App\Services\HlsPreviewService;
-use App\Services\VideoPreviewGenerationService;
 use App\Support\PlatformConfig;
 use App\Video;
 use Illuminate\Http\Request;
@@ -18,11 +17,7 @@ class ExploreController extends Controller
 {
     use SharesBranding;
 
-    public function index(
-        Request $request,
-        HlsPreviewService $hlsPreviewService,
-        VideoPreviewGenerationService $videoPreviewGenerationService
-    )
+    public function index(Request $request, HlsPreviewService $hlsPreviewService)
     {
         $perPage = min(max((int) $request->input('per_page', 20), 1), 50);
 
@@ -89,7 +84,6 @@ class ExploreController extends Controller
             : $q->paginate($perPage)->withQueryString();
 
         $this->queueMissingPostersFromPage($videos);
-        $this->ensureAtLeastOnePosterGenerated($videos, $videoPreviewGenerationService);
         $this->attachCardPreviewUrls($videos, $hlsPreviewService);
 
         if ($request->boolean('fragment')) {
@@ -118,12 +112,12 @@ class ExploreController extends Controller
             if (!$video instanceof Video) {
                 continue;
             }
-            if (trim((string) $video->thumbnail_url) !== '') {
+            if (!$video->needsPosterImageGeneration()) {
                 continue;
             }
             $key = 'poster:queued:video:' . $video->id;
             if (Cache::add($key, '1', now()->addMinutes(10))) {
-                GenerateVideoPosterJob::dispatch($video->id);
+                GenerateVideoPosterJob::dispatch($video->id)->afterResponse();
             }
         }
     }
@@ -142,31 +136,6 @@ class ExploreController extends Controller
             }
 
             $video->setAttribute('card_preview_url', $previewUrl);
-        }
-    }
-
-    private function ensureAtLeastOnePosterGenerated($videos, VideoPreviewGenerationService $previewService): void
-    {
-        $items = method_exists($videos, 'items') ? $videos->items() : [];
-        foreach ($items as $video) {
-            if (!$video instanceof Video) {
-                continue;
-            }
-            if (trim((string) $video->thumbnail_url) !== '') {
-                continue;
-            }
-
-            $lock = 'poster:sync:video:' . $video->id;
-            if (!Cache::add($lock, '1', now()->addMinutes(10))) {
-                continue;
-            }
-
-            $result = $previewService->generatePosterIfMissing($video);
-            if (($result['status'] ?? '') !== 'ok') {
-                // If generation failed, release early to allow another retry soon.
-                Cache::forget($lock);
-            }
-            break;
         }
     }
 }

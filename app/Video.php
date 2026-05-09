@@ -2,6 +2,7 @@
 
 namespace App;
 
+use App\Support\MediaSrc;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
 
@@ -155,5 +156,57 @@ class Video extends Model
         $givenClean = self::stripLegacyVsgSlugSuffix($given);
 
         return $givenClean !== '' && $givenClean === $canonical;
+    }
+
+    /**
+     * True si hace falta generar una portada JPG (sin miniatura o la URL apunta a un archivo de vídeo).
+     */
+    public function needsPosterImageGeneration(): bool
+    {
+        $t = trim((string) $this->thumbnail_url);
+
+        return $t === '' || self::storedUrlLooksLikeVideo($t);
+    }
+
+    /**
+     * @internal Reutilizado por servicios de ffmpeg / consultas de cola.
+     */
+    public static function storedUrlLooksLikeVideo(string $url): bool
+    {
+        $path = (string) (parse_url($url, PHP_URL_PATH) ?: $url);
+        $ext = strtolower((string) pathinfo($path, PATHINFO_EXTENSION));
+
+        return in_array($ext, ['mp4', 'webm', 'mov', 'm4v', 'mkv', 'ts', 'm3u8', 'ogv', 'avi'], true);
+    }
+
+    /**
+     * URL absoluta de imagen para Open Graph / Twitter (miniatura JPG o primera imagen en medios).
+     */
+    public function openGraphImageAbsolute(): string
+    {
+        $thumb = trim((string) $this->thumbnail_url);
+        if ($thumb !== '' && self::storedUrlLooksLikeVideo($thumb)) {
+            $thumb = '';
+        }
+        if ($thumb === '') {
+            $this->loadMissing('media');
+            $firstImage = $this->media->sortBy('position')->first(function ($m) {
+                return ($m->type ?? '') === 'image' && trim((string) ($m->url ?? '')) !== '';
+            });
+            $thumb = $firstImage ? trim((string) $firstImage->url) : '';
+        }
+        if ($thumb === '') {
+            return '';
+        }
+
+        $web = MediaSrc::web($thumb);
+        if ($web === '') {
+            return '';
+        }
+        if (preg_match('#^https?://#i', $web)) {
+            return $web;
+        }
+
+        return url($web);
     }
 }

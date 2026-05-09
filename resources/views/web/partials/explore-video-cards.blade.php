@@ -1,6 +1,9 @@
 @foreach($videos as $video)
     @php
         $thumb = $video->thumbnail_url;
+        if ($thumb && \App\Video::storedUrlLooksLikeVideo((string) $thumb)) {
+            $thumb = null;
+        }
         if (!$thumb && $video->relationLoaded('media') && $video->media->count()) {
             $firstImage = $video->media->sortBy('position')->first(function ($mediaItem) {
                 return ($mediaItem->type ?? '') === 'image';
@@ -23,9 +26,9 @@
             @if($previewUrl)
                 <video class="video-card-hover-video edc-card-preview-video pointer-events-none" src="{{ $previewUrl }}" muted loop playsinline preload="none" poster="{{ $thumbUrl ?: '' }}"></video>
             @endif
-            @if(!$thumbUrl)
+            @if(!$thumbUrl && !$previewUrl)
                 <span class="pointer-events-none absolute left-2 bottom-2 rounded-md bg-slate-900/80 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white backdrop-blur-sm">
-                    Generando portada…
+                    Video
                 </span>
             @endif
             <span class="pointer-events-none absolute bottom-2 right-2 rounded-md bg-black/75 px-2 py-0.5 text-[11px] font-semibold tabular-nums text-white backdrop-blur-sm">{{ $dur }}</span>

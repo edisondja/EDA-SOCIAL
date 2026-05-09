@@ -33,9 +33,15 @@ class VideoPreviewGenerationService
             ->where(function ($w) {
                 $w->where(function ($a) {
                     $a->whereNull('thumbnail_url')->orWhere('thumbnail_url', '');
-                })->orWhere(function ($b) {
-                    $b->whereNull('preview_url')->orWhere('preview_url', '');
-                });
+                })
+                    ->orWhere(function ($a) {
+                        foreach (['%.mp4%', '%.webm%', '%.mov%', '%.m4v%', '%.mkv%', '%.ts%'] as $like) {
+                            $a->orWhere('thumbnail_url', 'like', $like);
+                        }
+                    })
+                    ->orWhere(function ($b) {
+                        $b->whereNull('preview_url')->orWhere('preview_url', '');
+                    });
             })
             ->orderByDesc('id')
             ->limit($limit)
@@ -79,7 +85,7 @@ class VideoPreviewGenerationService
 
         $video->loadMissing('media');
 
-        $needsPoster = trim((string) $video->thumbnail_url) === '';
+        $needsPoster = $video->needsPosterImageGeneration();
         $needsPreview = trim((string) $video->preview_url) === '';
 
         if (!$needsPoster && !$needsPreview) {
@@ -171,7 +177,7 @@ class VideoPreviewGenerationService
         }
 
         $video->loadMissing('media');
-        if (trim((string) $video->thumbnail_url) !== '') {
+        if (!$video->needsPosterImageGeneration()) {
             return ['status' => 'skip', 'detail' => 'Ya tiene miniatura'];
         }
 
@@ -299,5 +305,60 @@ class VideoPreviewGenerationService
         @exec($command.' 2>&1', $output, $code);
 
         return (int) $code;
+    }
+
+    /**
+     * Solo portadas JPEG (rápido); encolar o cron para muchos vídeos sin poster.
+     *
+     * @return array{processed:int, skipped:int, failed:int, messages:string[]}
+     */
+    public function processMissingPostersBatch(int $limit): array
+    {
+        $limit = max(1, min(500, $limit));
+        $ffmpeg = $this->resolveFfmpegBinary();
+        if ($ffmpeg === null) {
+            return [
+                'processed' => 0,
+                'skipped' => 0,
+                'failed' => 0,
+                'messages' => ['No se encontró ffmpeg. Instalalo o definí FFMPEG_BINARY en .env.'],
+            ];
+        }
+
+        Storage::disk('public')->makeDirectory(self::PREVIEW_SUBDIR);
+
+        $processed = 0;
+        $skipped = 0;
+        $failed = 0;
+        $messages = [];
+
+        Video::query()
+            ->with(['media'])
+            ->orderByDesc('id')
+            ->chunkById(80, function ($chunk) use ($ffmpeg, $limit, &$processed, &$skipped, &$failed, &$messages) {
+                foreach ($chunk as $video) {
+                    if ($processed + $failed >= $limit) {
+                        return false;
+                    }
+                    if (!$video->needsPosterImageGeneration()) {
+                        continue;
+                    }
+                    $r = $this->generatePosterIfMissing($video, $ffmpeg);
+                    if ($r['status'] === 'ok') {
+                        $processed++;
+                        $messages[] = "Vídeo #{$video->id}: {$r['detail']}";
+                    } elseif ($r['status'] === 'skip') {
+                        $skipped++;
+                        $messages[] = "Vídeo #{$video->id}: {$r['detail']}";
+                    } else {
+                        $failed++;
+                        $messages[] = "Vídeo #{$video->id}: {$r['detail']}";
+                    }
+                }
+
+                return true;
+            });
+
+        return compact('processed', 'skipped', 'failed', 'messages');
     }
 }

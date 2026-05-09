@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Services\LocalVideoCompressor;
 use App\Video;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -71,6 +72,14 @@ class ProcessVideoMediaJob implements ShouldQueue
                     'path' => $path,
                     'message' => $e->getMessage(),
                 ]);
+            }
+        }
+
+        $video->refresh();
+        if ($video->needsPosterImageGeneration()) {
+            $key = 'poster:queued:video:' . $video->id;
+            if (Cache::add($key, '1', now()->addMinutes(10))) {
+                GenerateVideoPosterJob::dispatch($video->id);
             }
         }
     }

@@ -1,0 +1,167 @@
+<?php
+
+namespace App\Services;
+
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Redis;
+
+class IntegrationConnectivityService
+{
+    /**
+     * @return array{redis: array<string, mixed>, rabbitmq: array<string, mixed>}
+     */
+    public function snapshots(): array
+    {
+        return [
+            'redis' => $this->redisSnapshot(),
+            'rabbitmq' => $this->rabbitMqSnapshot(),
+        ];
+    }
+
+    /**
+     * @return array{
+     *   uses_redis_for_cache: bool,
+     *   configured: bool,
+     *   reachable: ?bool,
+     *   label: string,
+     *   detail: string
+     * }
+     */
+    public function redisSnapshot(): array
+    {
+        $cacheDriver = (string) config('cache.default', 'file');
+        $usesRedis = $cacheDriver === 'redis';
+        $host = trim((string) env('REDIS_HOST', ''));
+        if ($host === '') {
+            return [
+                'uses_redis_for_cache' => $usesRedis,
+                'configured' => false,
+                'reachable' => null,
+                'label' => 'Sin configurar',
+                'detail' => 'Definí REDIS_HOST en .env para probar conexión.',
+            ];
+        }
+
+        $port = (int) config('database.redis.default.port', 6379);
+        $connection = $usesRedis ? 'cache' : 'default';
+
+        try {
+            $client = Redis::connection($connection);
+            $pong = $client->ping();
+            $ok = $pong === true || $pong === '+PONG' || $pong === 'PONG'
+                || (is_string($pong) && stripos($pong, 'PONG') !== false);
+
+            $detail = $usesRedis
+                ? "Caché usa Redis (conexión «{$connection}») · {$host}:{$port}"
+                : "Caché usa «{$cacheDriver}»; probado Redis «{$connection}» · {$host}:{$port}";
+
+            return [
+                'uses_redis_for_cache' => $usesRedis,
+                'configured' => true,
+                'reachable' => (bool) $ok,
+                'label' => $ok ? 'Conectado' : 'No conectado',
+                'detail' => $detail,
+            ];
+        } catch (\Throwable $e) {
+            return [
+                'uses_redis_for_cache' => $usesRedis,
+                'configured' => true,
+                'reachable' => false,
+                'label' => 'No conectado',
+                'detail' => $usesRedis
+                    ? "Redis caché no responde ({$host}:{$port}): ".$e->getMessage()
+                    : "Redis no responde ({$host}:{$port}): ".$e->getMessage(),
+            ];
+        }
+    }
+
+    /**
+     * @return array{
+     *   host_configured: bool,
+     *   amqp_reachable: ?bool,
+     *   management_ok: ?bool,
+     *   label: string,
+     *   detail: string
+     * }
+     */
+    public function rabbitMqSnapshot(): array
+    {
+        $host = trim((string) env('RABBITMQ_HOST', ''));
+        if ($host === '') {
+            return [
+                'host_configured' => false,
+                'amqp_reachable' => null,
+                'management_ok' => null,
+                'label' => 'Sin configurar',
+                'detail' => 'Definí RABBITMQ_HOST (y credenciales) en .env para el broker AMQP.',
+            ];
+        }
+
+        $port = (int) env('RABBITMQ_PORT', 5672);
+        $amqpOk = $this->tcpReachable($host, $port, 3);
+
+        $mgmtBase = rtrim((string) env('RABBITMQ_MANAGEMENT_URL', ''), '/');
+        if ($mgmtBase === '') {
+            $mgmtBase = 'http://'.$host.':'.(int) env('RABBITMQ_MANAGEMENT_PORT', 15672);
+        }
+
+        $mgmtUser = (string) (env('RABBITMQ_MANAGEMENT_USER') ?: env('RABBITMQ_USER', 'guest'));
+        $mgmtPass = (string) (env('RABBITMQ_MANAGEMENT_PASSWORD') ?: env('RABBITMQ_PASSWORD', 'guest'));
+
+        $mgmtOk = null;
+        $mgmtDetail = '';
+        try {
+            $url = $mgmtBase.'/api/overview';
+            $resp = Http::timeout(4)->withBasicAuth($mgmtUser, $mgmtPass)->acceptJson()->get($url);
+            $mgmtOk = $resp->successful();
+            if (!$mgmtOk) {
+                $mgmtDetail = ' Management HTTP '.$resp->status().'.';
+            }
+        } catch (\Throwable $e) {
+            $mgmtOk = false;
+            $mgmtDetail = ' Management: '.$e->getMessage();
+        }
+
+        if ($amqpOk && $mgmtOk) {
+            $label = 'Conectado';
+        } elseif ($amqpOk) {
+            $label = 'Broker OK';
+        } elseif ($mgmtOk) {
+            $label = 'Parcial';
+        } else {
+            $label = 'No conectado';
+        }
+
+        $detail = "AMQP {$host}:{$port} — ".($amqpOk ? 'puerto alcanzable' : 'puerto no alcanzable');
+        $detail .= ' · Management '.$mgmtBase.' — '.($mgmtOk === true ? 'API OK' : ($mgmtOk === false ? 'API no disponible'.$mgmtDetail : 'no probado'));
+
+        return [
+            'host_configured' => true,
+            'amqp_reachable' => $amqpOk,
+            'management_ok' => $mgmtOk,
+            'label' => $label,
+            'detail' => $detail,
+        ];
+    }
+
+    private function tcpReachable(string $host, int $port, int $timeoutSeconds): bool
+    {
+        $errno = 0;
+        $errstr = '';
+        $ctx = stream_socket_client(
+            'tcp://'.$host.':'.$port,
+            $errno,
+            $errstr,
+            $timeoutSeconds,
+            STREAM_CLIENT_CONNECT
+        );
+
+        if (is_resource($ctx)) {
+            fclose($ctx);
+
+            return true;
+        }
+
+        return false;
+    }
+}
