@@ -268,9 +268,33 @@ class PlatformSettingController extends Controller
 
     public function writeSitemapFile(Request $request)
     {
-        $response = app(\App\Http\Controllers\SitemapController::class)->show();
         $path = public_path('sitemap.xml');
-        File::put($path, $response->getContent());
+        $dir = dirname($path);
+
+        if (!is_dir($dir) || !is_writable($dir)) {
+            return response()->json([
+                'ok' => false,
+                'message' => 'El directorio public/ no es escribible; no se puede crear sitemap.xml.',
+            ], 500);
+        }
+
+        if (file_exists($path) && !is_writable($path)) {
+            return response()->json([
+                'ok' => false,
+                'message' => 'sitemap.xml existe y el servidor no tiene permiso de escritura.',
+            ], 500);
+        }
+
+        try {
+            app(\App\Http\Controllers\SitemapController::class)->writeToPath($path);
+        } catch (\Throwable $e) {
+            report($e);
+
+            return response()->json([
+                'ok' => false,
+                'message' => config('app.debug') ? $e->getMessage() : 'Error al generar el contenido del sitemap (base de datos o disco).',
+            ], 500);
+        }
 
         $url = $request->getSchemeAndHttpHost() . '/sitemap.xml';
 

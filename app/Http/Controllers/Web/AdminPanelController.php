@@ -307,26 +307,42 @@ class AdminPanelController extends Controller
     public function writeSitemap(Request $request)
     {
         $data = $request->validate([
-            'include_all_posts' => 'nullable|boolean',
+            'include_all_posts' => 'nullable|in:0,1',
         ]);
 
         if (array_key_exists('include_all_posts', $data)) {
-            PlatformConfig::set('sitemap_include_all_posts', !empty($data['include_all_posts']) ? '1' : '0');
+            PlatformConfig::set('sitemap_include_all_posts', (string) $data['include_all_posts'] === '1' ? '1' : '0');
         }
 
         $progressKey = $this->sitemapProgressKey($request);
-        Cache::put($progressKey, 5, now()->addMinutes(10));
+        $this->putSitemapProgress($progressKey, 5);
 
         try {
-            Cache::put($progressKey, 25, now()->addMinutes(10));
+            $this->putSitemapProgress($progressKey, 25);
             $response = app(ApiPlatform::class)->writeSitemapFile($request);
-            Cache::put($progressKey, 90, now()->addMinutes(10));
-
             $content = method_exists($response, 'getContent') ? $response->getContent() : '';
             $json = json_decode((string) $content, true) ?: [];
-            $sitemapUrl = is_array($json) ? (string) ($json['public_url'] ?? url('/sitemap.xml')) : url('/sitemap.xml');
 
-            Cache::put($progressKey, 100, now()->addMinutes(5));
+            if (!is_array($json) || empty($json['ok'])) {
+                $msg = is_array($json) ? (string) ($json['message'] ?? 'No se pudo generar sitemap.xml.') : 'No se pudo generar sitemap.xml.';
+                $code = method_exists($response, 'getStatusCode') ? (int) $response->getStatusCode() : 500;
+                $code = $code >= 400 && $code < 600 ? $code : 500;
+                $this->forgetSitemapProgress($progressKey);
+                if ($request->expectsJson() || $request->ajax() || $request->wantsJson()) {
+                    return response()->json([
+                        'ok' => false,
+                        'message' => $msg,
+                    ], $code);
+                }
+
+                return $this->adminSectionRedirect($request)->withErrors(['admin' => $msg])->withInput();
+            }
+
+            $this->putSitemapProgress($progressKey, 90);
+
+            $sitemapUrl = (string) ($json['public_url'] ?? url('/sitemap.xml'));
+
+            $this->putSitemapProgress($progressKey, 100);
 
             if ($request->expectsJson() || $request->ajax() || $request->wantsJson()) {
                 return response()->json([
@@ -338,7 +354,7 @@ class AdminPanelController extends Controller
 
             return $this->adminSectionRedirect($request)->with('status', 'sitemap.xml generado.');
         } catch (\Illuminate\Validation\ValidationException $e) {
-            Cache::forget($progressKey);
+            $this->forgetSitemapProgress($progressKey);
             if ($request->expectsJson() || $request->ajax() || $request->wantsJson()) {
                 return response()->json([
                     'ok' => false,
@@ -349,11 +365,11 @@ class AdminPanelController extends Controller
 
             return $this->adminSectionRedirect($request)->withErrors($e->errors())->withInput();
         } catch (\Throwable $e) {
-            Cache::forget($progressKey);
+            $this->forgetSitemapProgress($progressKey);
             if ($request->expectsJson() || $request->ajax() || $request->wantsJson()) {
                 return response()->json([
                     'ok' => false,
-                    'message' => 'No se pudo generar sitemap.xml.',
+                    'message' => config('app.debug') ? $e->getMessage() : 'No se pudo generar sitemap.xml.',
                 ], 500);
             }
 
@@ -824,6 +840,24 @@ class AdminPanelController extends Controller
         }
 
         return $out;
+    }
+
+    private function putSitemapProgress(string $key, int $value): void
+    {
+        try {
+            Cache::put($key, $value, now()->addMinutes(10));
+        } catch (\Throwable $e) {
+            report($e);
+        }
+    }
+
+    private function forgetSitemapProgress(string $key): void
+    {
+        try {
+            Cache::forget($key);
+        } catch (\Throwable $e) {
+            report($e);
+        }
     }
 
     private function sitemapProgressKey(Request $request): string

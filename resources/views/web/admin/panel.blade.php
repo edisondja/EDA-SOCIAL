@@ -222,13 +222,27 @@
                             body: fd,
                             credentials: 'same-origin',
                         })
-                        .then(function (r) { return r.json().catch(function () { return null; }); })
-                        .then(function (data) {
+                        .then(function (r) {
+                            return r.text().then(function (t) {
+                                var data = null;
+                                if (t) {
+                                    try { data = JSON.parse(t); } catch (e) { data = null; }
+                                }
+                                return { okHttp: r.ok, status: r.status, data: data };
+                            });
+                        })
+                        .then(function (res) {
                             setProgress(100);
-                            if (text) text.textContent = data && data.ok ? 'Sitemap generado correctamente (100%).' : 'No se pudo generar sitemap.';
+                            var data = res && res.data;
+                            var ok = !!(data && data.ok);
+                            var msg = ok ? 'Sitemap generado correctamente (100%).' : (data && data.message ? String(data.message) : 'No se pudo generar sitemap.');
+                            if (!ok && res && !res.okHttp && res.status) {
+                                msg = msg + ' (HTTP ' + res.status + ')';
+                            }
+                            if (text) text.textContent = msg;
                             stopPolling();
                             if (btn) btn.disabled = false;
-                            if (data && data.ok) {
+                            if (ok) {
                                 setTimeout(function () { window.location.reload(); }, 700);
                             }
                         })
