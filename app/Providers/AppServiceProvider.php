@@ -17,7 +17,40 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register()
     {
-        //
+        $this->ensureRabbitMqQueueConnectionConfigured();
+    }
+
+    /**
+     * Refuerzo: con `php artisan config:cache` antiguo a veces falta queue.connections.rabbitmq en el blob cacheado.
+     */
+    private function ensureRabbitMqQueueConnectionConfigured(): void
+    {
+        if (!$this->app->bound('config')) {
+            return;
+        }
+
+        $config = $this->app->make('config');
+        $existing = $config->get('queue.connections.rabbitmq');
+        if (is_array($existing) && ($existing['driver'] ?? null) === 'rabbitmq') {
+            return;
+        }
+
+        $config->set('queue.connections.rabbitmq', [
+            'driver' => 'rabbitmq',
+            'queue' => env('RABBITMQ_QUEUE', 'default'),
+            'connection' => 'default',
+            'hosts' => [
+                [
+                    'host' => env('RABBITMQ_HOST', '127.0.0.1'),
+                    'port' => env('RABBITMQ_PORT', 5672),
+                    'user' => env('RABBITMQ_USER', 'guest'),
+                    'password' => env('RABBITMQ_PASSWORD', 'guest'),
+                    'vhost' => env('RABBITMQ_VHOST', '/'),
+                ],
+            ],
+            'options' => [],
+            'worker' => env('RABBITMQ_WORKER', 'default'),
+        ]);
     }
 
     /**

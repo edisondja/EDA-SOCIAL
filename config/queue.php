@@ -24,7 +24,7 @@ return [
     | is used by your application. A default configuration has been added
     | for each back-end shipped with Laravel. You are free to add more.
     |
-    | Drivers: "sync", "database", "beanstalkd", "sqs", "redis", "null"
+    | Drivers: "sync", "database", "beanstalkd", "sqs", "redis", "rabbitmq", "null"
     |
     */
 
@@ -65,6 +65,28 @@ return [
             'queue' => env('REDIS_QUEUE', 'default'),
             'retry_after' => 90,
             'block_for' => null,
+        ],
+
+        /*
+        | RabbitMQ (requiere vladimir-yuldashev/laravel-queue-rabbitmq + php-amqplib).
+        | Colas de jobs: p. ej. media, default. QUEUE_CONNECTION=rabbitmq en .env
+        */
+        'rabbitmq' => [
+            'driver' => 'rabbitmq',
+            'queue' => env('RABBITMQ_QUEUE', 'default'),
+            'connection' => 'default',
+            'hosts' => [
+                [
+                    'host' => env('RABBITMQ_HOST', '127.0.0.1'),
+                    'port' => env('RABBITMQ_PORT', 5672),
+                    'user' => env('RABBITMQ_USER', 'guest'),
+                    'password' => env('RABBITMQ_PASSWORD', 'guest'),
+                    'vhost' => env('RABBITMQ_VHOST', '/'),
+                ],
+            ],
+            'options' => [
+            ],
+            'worker' => env('RABBITMQ_WORKER', 'default'),
         ],
 
     ],
