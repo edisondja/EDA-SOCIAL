@@ -515,6 +515,48 @@
                 <button type="submit" class="btn-primary label-with-icon">@include('web.partials.form-icon', ['name' => 'sparkles']) Guardar</button>
             </form>
 
+            <details class="admin-redis-docs" style="margin-top:18px;border:1px solid #e2e8f0;border-radius:10px;background:#f8fafc;padding:12px 14px;">
+                <summary class="cursor-pointer text-sm font-semibold text-slate-800" style="cursor:pointer;">Redis — instalación para caché Laravel</summary>
+                <div class="mt-3 space-y-3 text-sm text-slate-700" style="margin-top:12px;">
+                    <p class="hint-text" style="margin:0;">Redis acelera la caché de consultas (por ejemplo el explorar) y los deduplicados de colas en hover. Ejecutá en el <strong>servidor</strong> (Ubuntu/Debian) con <code>sudo</code> salvo que indique otro modo.</p>
+
+                    <p class="font-semibold text-slate-900" style="margin:10px 0 4px;">1) Instalar el servidor Redis</p>
+                    <pre class="admin-json-preview" style="margin:0;font-size:11px;white-space:pre-wrap;">sudo apt update
+sudo apt install -y redis-server
+sudo systemctl enable --now redis-server
+redis-cli ping</pre>
+                    <p class="hint-text" style="margin:4px 0 0;">La última línea debe responder <code>PONG</code>. El servicio escucha por defecto en <code>127.0.0.1:6379</code>.</p>
+
+                    <p class="font-semibold text-slate-900" style="margin:10px 0 4px;">2) Extensión PHP <code>phpredis</code> (requerida para <code>REDIS_CLIENT=phpredis</code>)</p>
+                    <pre class="admin-json-preview" style="margin:0;font-size:11px;white-space:pre-wrap;"># Sustituí 8.4 por tu versión de PHP (php -v)
+sudo apt install -y php8.4-redis
+sudo systemctl reload php8.4-fpm   # o apache2, según tu stack
+php -m | grep -i redis</pre>
+                    <p class="hint-text" style="margin:4px 0 0;">Si no hay paquete para tu versión: <code>sudo pecl install redis</code> y habilitá la extensión en el <code>php.ini</code> del FPM/CLI correspondiente.</p>
+
+                    <p class="font-semibold text-slate-900" style="margin:10px 0 4px;">3) Variables en <code>.env</code> del backend</p>
+                    <pre class="admin-json-preview" style="margin:0;font-size:11px;white-space:pre-wrap;">CACHE_DRIVER=redis
+REDIS_CLIENT=phpredis
+REDIS_HOST=127.0.0.1
+REDIS_PASSWORD=null
+REDIS_PORT=6379
+# Base lógica separada de la default (sesiones/cola pueden usar otra)
+REDIS_CACHE_DB=1</pre>
+                    <p class="hint-text" style="margin:4px 0 0;">Tras cambiar <code>.env</code>: <code>php artisan config:clear</code> (y si usás <code>config:cache</code> en producción, volvé a generar la caché). En este panel, activá además la casilla <strong>«Activar Redis para caché»</strong> y guardá para que la app use Redis en las rutas que lo comprueban.</p>
+
+                    <p class="font-semibold text-slate-900" style="margin:10px 0 4px;">4) Comprobar desde Laravel</p>
+                    <pre class="admin-json-preview" style="margin:0;font-size:11px;white-space:pre-wrap;">cd /ruta/al/backend &amp;&amp; php artisan tinker --execute="Illuminate\Support\Facades\Cache::store('redis')->put('_ping',1,5); echo Cache::store('redis')->get('_ping');"</pre>
+                    <p class="hint-text" style="margin:4px 0 0;">La tarjeta <strong>Redis — caché</strong> arriba debe mostrar «Conectado» cuando <code>REDIS_HOST</code> apunta a un Redis accesible.</p>
+
+                    <p class="font-semibold text-slate-900" style="margin:10px 0 4px;">5) Producción y seguridad</p>
+                    <p class="hint-text" style="margin:0;">En <code>/etc/redis/redis.conf</code> podés enlazar solo a localhost (<code>bind 127.0.0.1 ::1</code>) y definir <code>requirepass</code> si Redis no es local; entonces poné la misma contraseña en <code>REDIS_PASSWORD</code> del <code>.env</code> (entre comillas si tiene caracteres especiales).</p>
+
+                    <p class="font-semibold text-slate-900" style="margin:10px 0 4px;">Alternativa: Docker (desarrollo)</p>
+                    <pre class="admin-json-preview" style="margin:0;font-size:11px;white-space:pre-wrap;">docker run -d --name redis-cache -p 6379:6379 redis:7-alpine redis-server --appendonly yes</pre>
+                    <p class="hint-text" style="margin:4px 0 0;">En ese caso <code>REDIS_HOST=127.0.0.1</code> si el contenedor publica el puerto en la máquina host.</p>
+                </div>
+            </details>
+
             <details class="admin-rabbitmq-docs" style="margin-top:18px;border:1px solid #e2e8f0;border-radius:10px;background:#f8fafc;padding:12px 14px;">
                 <summary class="cursor-pointer text-sm font-semibold text-slate-800" style="cursor:pointer;">RabbitMQ — instalación y usuario para colas (HLS / portadas)</summary>
                 <div class="mt-3 space-y-3 text-sm text-slate-700" style="margin-top:12px;">

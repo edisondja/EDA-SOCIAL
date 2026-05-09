@@ -17,7 +17,7 @@
         $dur = sprintf('%02d:%02d', intdiv($sec, 60), $sec % 60);
     @endphp
     <article class="video-card group flex flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-soft transition duration-300 hover:border-slate-300 hover:shadow-lift">
-        <a href="{{ $video->playUrl() }}" class="js-video-hover-preview relative block aspect-video overflow-hidden bg-slate-950 text-inherit no-underline">
+        <a href="{{ $video->playUrl() }}" class="js-video-hover-preview relative block aspect-video overflow-hidden bg-slate-950 text-inherit no-underline" @if($video->needsGeneratedCardPreview()) data-hover-card-queue="{{ route('explore.hover_card_media', $video) }}" @endif>
             @if($thumbUrl)
                 <img class="edc-card-thumb" src="{{ $thumbUrl }}" alt="{{ $video->title }}" loading="lazy" decoding="async">
             @elseif($previewUrl)

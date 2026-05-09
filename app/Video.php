@@ -169,6 +169,18 @@ class Video extends Model
     }
 
     /**
+     * True si conviene generar con ffmpeg portada y/o clip de hover para la tarjeta del feed.
+     */
+    public function needsGeneratedCardPreview(): bool
+    {
+        if ($this->needsPosterImageGeneration()) {
+            return true;
+        }
+
+        return trim((string) $this->preview_url) === '';
+    }
+
+    /**
      * @internal Reutilizado por servicios de ffmpeg / consultas de cola.
      */
     public static function storedUrlLooksLikeVideo(string $url): bool

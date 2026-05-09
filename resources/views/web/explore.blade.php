@@ -137,7 +137,36 @@
     });
   }
 
+  function bindEnqueueHoverCardMedia(scope) {
+    var root = scope || document;
+    root.querySelectorAll('a.js-video-hover-preview[data-hover-card-queue]').forEach(function (el) {
+      if (el.dataset.edaHoverQueueBound === '1') return;
+      el.dataset.edaHoverQueueBound = '1';
+      var url = el.getAttribute('data-hover-card-queue');
+      if (!url) return;
+      el.addEventListener('mouseenter', function () {
+        if (el.dataset.edaHoverQueued === '1') return;
+        el.dataset.edaHoverQueued = '1';
+        var meta = document.querySelector('meta[name="csrf-token"]');
+        var token = meta && meta.getAttribute('content');
+        if (!token) return;
+        fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'X-CSRF-TOKEN': token,
+            'X-Requested-With': 'XMLHttpRequest',
+          },
+          credentials: 'same-origin',
+          body: '{}',
+        }).catch(function () {});
+      });
+    });
+  }
+
   bindHoverPreviews(document.getElementById('explore-video-grid'));
+  bindEnqueueHoverCardMedia(document.getElementById('explore-video-grid'));
 
   var bootEl = document.getElementById('explore-feed-bootstrap');
   var sentinel = document.getElementById('explore-scroll-sentinel');
@@ -224,6 +253,7 @@
         });
         loaded += nodes.length;
         bindHoverPreviews(grid);
+        bindEnqueueHoverCardMedia(grid);
 
         nextPage += 1;
         if (nextPage > lastPage || nodes.length < (boot.perPage || 20)) {

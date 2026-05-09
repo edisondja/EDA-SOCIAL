@@ -6,6 +6,9 @@ use Illuminate\Support\Facades\Route;
 Route::redirect('/', '/explorar');
 
 Route::get('/explorar', 'Web\ExploreController@index')->name('explore.index');
+Route::post('/explorar/videos/{video}/cola-vista-tarjeta', 'Web\ExploreController@enqueueHoverCardMedia')
+    ->middleware('throttle:60,1')
+    ->name('explore.hover_card_media');
 
 Route::get('/playvideo/{video}/{slug}', 'Web\PostController@show')
     ->where(['video' => '[0-9]+', 'slug' => '[^/]+'])

@@ -5,7 +5,7 @@ namespace App\Http\Controllers\Web;
 use App\Category;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Web\Concerns\SharesBranding;
-use App\Jobs\GenerateVideoPosterJob;
+use App\Jobs\GenerateVideoCardMediaJob;
 use App\Services\HlsPreviewService;
 use App\Support\PlatformConfig;
 use App\Video;
@@ -83,7 +83,6 @@ class ExploreController extends Controller
             )
             : $q->paginate($perPage)->withQueryString();
 
-        $this->queueMissingPostersFromPage($videos);
         $this->attachCardPreviewUrls($videos, $hlsPreviewService);
 
         if ($request->boolean('fragment')) {
@@ -105,21 +104,33 @@ class ExploreController extends Controller
         return PlatformConfig::get('feature_redis_cache') === '1' && config('cache.default') === 'redis';
     }
 
-    private function queueMissingPostersFromPage($videos): void
+    /**
+     * Encola ffmpeg (poster + clip hover) cuando el usuario pasa el cursor por la tarjeta.
+     * Dedupe con caché (Redis si CACHE_DRIVER=redis) para no saturar la cola.
+     */
+    public function enqueueHoverCardMedia(Request $request, Video $video)
     {
-        $items = method_exists($videos, 'items') ? $videos->items() : [];
-        foreach ($items as $video) {
-            if (!$video instanceof Video) {
-                continue;
-            }
-            if (!$video->needsPosterImageGeneration()) {
-                continue;
-            }
-            $key = 'poster:queued:video:' . $video->id;
-            if (Cache::add($key, '1', now()->addMinutes(10))) {
-                GenerateVideoPosterJob::dispatch($video->id)->afterResponse();
-            }
+        abort_unless($video->is_published && $video->moderation_status === 'active', 404);
+
+        if (!$video->needsGeneratedCardPreview()) {
+            return response()->json(['ok' => true, 'skipped' => true]);
         }
+
+        $key = 'hover-card:queued:' . $video->id;
+        if (!Cache::add($key, 1, now()->addMinutes(15))) {
+            return response()->json(['ok' => true, 'queued' => false, 'deduped' => true]);
+        }
+
+        try {
+            GenerateVideoCardMediaJob::dispatch($video->id);
+        } catch (\Throwable $e) {
+            Cache::forget($key);
+            report($e);
+
+            return response()->json(['ok' => false, 'message' => 'No se pudo encolar la generación.'], 500);
+        }
+
+        return response()->json(['ok' => true, 'queued' => true]);
     }
 
     private function attachCardPreviewUrls($videos, HlsPreviewService $hlsPreviewService): void
