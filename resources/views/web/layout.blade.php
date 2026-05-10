@@ -101,6 +101,7 @@
                     </form>
                 @else
                     <a href="{{ route('login') }}" class="eda-btn-primary !px-4 !py-2 !text-sm">Entrar</a>
+                    <a href="{{ route('register') }}" class="eda-btn-secondary !px-4 !py-2 text-sm">Registro</a>
                 @endauth
             </nav>
             @auth
@@ -144,6 +145,7 @@
                 </form>
             @else
                 <a href="{{ route('login') }}" class="eda-btn-primary w-full justify-center">Iniciar sesión</a>
+                <a href="{{ route('register') }}" class="eda-btn-secondary w-full justify-center">Crear cuenta</a>
             @endauth
         </nav>
     </div>

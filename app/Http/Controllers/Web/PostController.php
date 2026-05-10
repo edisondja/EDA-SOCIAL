@@ -5,8 +5,8 @@ namespace App\Http\Controllers\Web;
 use App\Comment;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Web\Concerns\SharesBranding;
+use App\Jobs\GenerateVideoCardMediaJob;
 use App\Jobs\GenerateVideoHlsJob;
-use App\Jobs\GenerateVideoPosterJob;
 use App\Services\VideoViewTracker;
 use App\Support\PlatformConfig;
 use App\Support\VideoAdPresentation;
@@ -31,7 +31,7 @@ class PostController extends Controller
             return redirect()->route('posts.show', ['video' => $video->id, 'slug' => $video->playSlug()], 301);
         }
 
-        $this->queuePosterGenerationIfNeeded($video);
+        $this->queueCardMediaGenerationIfNeeded($video);
         $this->queueHlsGenerationIfNeeded($video);
 
         $video->load([
@@ -337,15 +337,15 @@ class PostController extends Controller
         }
     }
 
-    private function queuePosterGenerationIfNeeded(Video $video): void
+    private function queueCardMediaGenerationIfNeeded(Video $video): void
     {
-        if (!$video->needsPosterImageGeneration()) {
+        if (!$video->needsGeneratedCardPreview()) {
             return;
         }
 
-        $key = 'poster:queued:video:' . $video->id;
+        $key = 'card-media:queued:video:' . $video->id;
         if (Cache::add($key, '1', now()->addMinutes(10))) {
-            GenerateVideoPosterJob::dispatch($video->id)->afterResponse();
+            GenerateVideoCardMediaJob::dispatch($video->id)->afterResponse();
         }
     }
 }

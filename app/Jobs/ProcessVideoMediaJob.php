@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Jobs\GenerateVideoCardMediaJob;
 use App\Services\LocalVideoCompressor;
 use App\Video;
 use Illuminate\Support\Facades\Cache;
@@ -76,10 +77,10 @@ class ProcessVideoMediaJob implements ShouldQueue
         }
 
         $video->refresh();
-        if ($video->needsPosterImageGeneration()) {
-            $key = 'poster:queued:video:' . $video->id;
+        if ($video->needsGeneratedCardPreview()) {
+            $key = 'card-media:queued:video:' . $video->id;
             if (Cache::add($key, '1', now()->addMinutes(10))) {
-                GenerateVideoPosterJob::dispatch($video->id);
+                GenerateVideoCardMediaJob::dispatch($video->id);
             }
         }
     }

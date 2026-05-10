@@ -21,6 +21,10 @@
         </label>
         <button type="submit" class="btn-primary label-with-icon mt-2 w-full justify-center">@include('web.partials.form-icon', ['name' => 'paper-airplane']) Entrar</button>
     </form>
-    <p class="mt-8 text-center text-sm text-slate-500"><a href="{{ route('explore.index') }}" class="text-link">Volver al inicio</a></p>
+    <p class="mt-6 text-center text-sm text-slate-500">
+        ¿No tienes cuenta?
+        <a href="{{ route('register') }}" class="text-link">Regístrate</a>
+    </p>
+    <p class="mt-4 text-center text-sm text-slate-500"><a href="{{ route('explore.index') }}" class="text-link">Volver al inicio</a></p>
 </main>
 @endsection

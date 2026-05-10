@@ -34,6 +34,8 @@ Route::post('/comentarios/{comment}/votar', 'Web\PostController@voteComment')->m
 Route::middleware('guest')->group(function () {
     Route::get('/login', 'Web\AuthWebController@showLogin')->name('login');
     Route::post('/login', 'Web\AuthWebController@login');
+    Route::get('/register', 'Web\AuthWebController@showRegister')->name('register');
+    Route::post('/register', 'Web\AuthWebController@register')->name('register.store');
 });
 
 Route::post('/logout', 'Web\AuthWebController@logout')->middleware('auth')->name('logout');
