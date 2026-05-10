@@ -144,7 +144,7 @@
       el.dataset.edaHoverQueueBound = '1';
       var url = el.getAttribute('data-hover-card-queue');
       if (!url) return;
-      el.addEventListener('mouseenter', function () {
+      function enqueueOnce() {
         if (el.dataset.edaHoverQueued === '1') return;
         el.dataset.edaHoverQueued = '1';
         var meta = document.querySelector('meta[name="csrf-token"]');
@@ -161,7 +161,11 @@
           credentials: 'same-origin',
           body: '{}',
         }).catch(function () {});
-      });
+      }
+      el.addEventListener('mouseenter', enqueueOnce);
+      el.addEventListener('focus', enqueueOnce);
+      el.addEventListener('click', enqueueOnce);
+      el.addEventListener('touchstart', enqueueOnce, { passive: true });
     });
   }
 
