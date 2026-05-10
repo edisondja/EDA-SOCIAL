@@ -79,6 +79,11 @@ Route::middleware(['auth', 'admin_or_mod_web'])->prefix('admin')->group(function
     Route::get('/workers/media/estado', 'Web\AdminPanelController@workerMediaStatus')->name('admin.worker_media_status');
     Route::post('/workers/media/encender', 'Web\AdminPanelController@startWorkerMedia')->name('admin.worker_media_start');
     Route::post('/reddit/importar', 'Web\AdminPanelController@importReddit')->name('admin.reddit');
+    Route::get('/tendencias/google', 'Web\AdminPanelController@googleTrendsFetch')
+        ->middleware('throttle:30,1')
+        ->name('admin.google_trends');
+    Route::post('/tendencias/google/geo', 'Web\AdminPanelController@saveGoogleTrendsGeo')
+        ->name('admin.google_trends_geo');
     Route::post('/usuarios/{user}/rol', 'Web\AdminPanelController@updateUserRole')->name('admin.user_role');
     Route::post('/videos/{video}/bloquear', 'Web\AdminPanelController@blockVideo')->name('admin.video_block');
     Route::post('/videos/{video}/activar', 'Web\AdminPanelController@activateVideo')->name('admin.video_activate');

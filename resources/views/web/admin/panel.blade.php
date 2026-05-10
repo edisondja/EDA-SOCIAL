@@ -1339,11 +1339,128 @@ RABBITMQ_ADMIN_QUEUE_NAMES=media,default</pre>
                 <button type="submit" class="btn-primary label-with-icon" style="margin-top:12px;">@include('web.partials.form-icon', ['name' => 'arrow-down-tray']) Importar</button>
             </form>
 
+            @php
+                $__trendsDefaultGeo = \App\Support\PlatformConfig::get('google_trends_geo', 'MX');
+            @endphp
+            <section class="aspecto-card" style="margin-top:28px;padding:16px 18px;border:1px solid #e2e8f0;border-radius:12px;background:#fff;max-width:52rem;" aria-labelledby="admin-google-trends-heading">
+                <h3 id="admin-google-trends-heading" class="aspecto-card-title" style="margin-bottom:8px;">Google Trends (integración RSS)</h3>
+                <p class="hint-text" style="margin:0 0 12px;line-height:1.5;">Listado en vivo de <strong>búsquedas en tendencia</strong> según región (fuente oficial de Google vía RSS público). Los datos se cachean <strong>15 minutos</strong> en el servidor para no saturar a Google.</p>
+                <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;margin-bottom:10px;">
+                    <div>
+                        <label class="field-label" for="admin_google_trends_geo">Región</label>
+                        <select id="admin_google_trends_geo" class="create-category-select" style="min-width:12rem;">
+                            @foreach(\App\Services\GoogleTrendsRssService::ALLOWED_GEO as $g)
+                                <option value="{{ $g }}" {{ $__trendsDefaultGeo === $g ? 'selected' : '' }}>{{ $g }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <button type="button" class="btn-secondary" id="admin_google_trends_load_btn">Cargar tendencias</button>
+                    <button type="button" class="btn-secondary" id="admin_google_trends_refresh_btn" title="Ignorar caché y volver a pedir a Google">Forzar actualización</button>
+                    <button type="button" class="btn-primary" id="admin_google_trends_save_geo_btn">Guardar región por defecto</button>
+                </div>
+                <p id="admin_google_trends_status" class="hint-text" style="min-height:1.25rem;"></p>
+                <p class="hint-text" style="margin:0 0 8px;"><a href="#" id="admin_google_trends_rss_link" class="text-link" target="_blank" rel="noopener noreferrer" style="display:none;">Abrir RSS en Google</a></p>
+                <div id="admin_google_trends_list" class="hint-text" style="max-height:28rem;overflow:auto;border:1px solid #e2e8f0;border-radius:10px;padding:10px 12px;background:#fafafa;"></div>
+            </section>
+            <script>
+            (function () {
+                var loadBtn = document.getElementById('admin_google_trends_load_btn');
+                var refreshBtn = document.getElementById('admin_google_trends_refresh_btn');
+                var saveGeoBtn = document.getElementById('admin_google_trends_save_geo_btn');
+                var geoSel = document.getElementById('admin_google_trends_geo');
+                var statusEl = document.getElementById('admin_google_trends_status');
+                var listEl = document.getElementById('admin_google_trends_list');
+                var rssLink = document.getElementById('admin_google_trends_rss_link');
+                var fetchUrl = @json(route('admin.google_trends', [], false));
+                var saveGeoUrl = @json(route('admin.google_trends_geo', [], false));
+                var csrf = document.querySelector('meta[name="csrf-token"]');
+                if (!loadBtn || !geoSel || !listEl) return;
+
+                function esc(s) {
+                    var d = document.createElement('div');
+                    d.textContent = s == null ? '' : String(s);
+                    return d.innerHTML;
+                }
+
+                function loadTrends(refresh) {
+                    if (statusEl) statusEl.textContent = 'Cargando…';
+                    listEl.innerHTML = '';
+                    var geo = geoSel.value || 'MX';
+                    var q = '?geo=' + encodeURIComponent(geo) + (refresh ? '&refresh=1' : '');
+                    fetch(fetchUrl + q, { headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' })
+                        .then(function (r) { return r.json().catch(function () { return null; }).then(function (data) { return { okHttp: r.ok, data: data }; }); })
+                        .then(function (res) {
+                            var data = res.data;
+                            if (!data || !data.ok) {
+                                if (statusEl) statusEl.textContent = (data && data.message) ? data.message : 'No se pudieron cargar las tendencias.';
+                                return;
+                            }
+                            if (statusEl) statusEl.textContent = 'Región ' + data.geo + ' · ' + (data.items ? data.items.length : 0) + ' temas (caché 15 min salvo «Forzar»).';
+                            if (rssLink && data.source_rss) {
+                                rssLink.href = data.source_rss;
+                                rssLink.style.display = 'inline';
+                            }
+                            var items = data.items || [];
+                            if (!items.length) {
+                                listEl.innerHTML = '<p class="text-slate-500">No hay ítems en el RSS para esta región en este momento.</p>';
+                                return;
+                            }
+                            listEl.innerHTML = items.map(function (it, idx) {
+                                var news = (it.news || []).map(function (n) {
+                                    if (!n.url) return '<li>' + esc(n.title) + (n.source ? ' <span class="text-slate-400">(' + esc(n.source) + ')</span>' : '') + '</li>';
+                                    return '<li><a class="text-link" href="' + esc(n.url) + '" target="_blank" rel="noopener noreferrer">' + esc(n.title || n.url) + '</a>' + (n.source ? ' <span class="text-slate-400">(' + esc(n.source) + ')</span>' : '') + '</li>';
+                                }).join('');
+                                var sep = idx > 0 ? 'border-top:1px solid #e2e8f0;padding-top:10px;margin-top:10px;' : 'padding-top:2px;';
+                                return '<article style="' + sep + '" class="gt-item">' +
+                                    '<div style="font-weight:700;color:#0f172a;">' + (idx + 1) + '. ' + esc(it.title) +
+                                    (it.traffic ? ' <span style="font-weight:600;color:#64748b;font-size:12px;">· ' + esc(it.traffic) + '</span>' : '') + '</div>' +
+                                    (it.pub_date ? '<div class="text-xs text-slate-500" style="margin-top:2px;">' + esc(it.pub_date) + '</div>' : '') +
+                                    (it.explore_url ? '<div style="margin-top:6px;"><a class="btn-secondary" style="display:inline-block;padding:4px 10px;font-size:12px;text-decoration:none;" href="' + esc(it.explore_url) + '" target="_blank" rel="noopener noreferrer">Explorar en Google Trends</a></div>' : '') +
+                                    (news ? '<ul style="margin:8px 0 0;padding-left:1.1rem;font-size:13px;line-height:1.5;">' + news + '</ul>' : '') +
+                                    '</article>';
+                            }).join('');
+                        })
+                        .catch(function () {
+                            if (statusEl) statusEl.textContent = 'Error de red al cargar tendencias.';
+                        });
+                }
+
+                loadBtn.addEventListener('click', function () { loadTrends(false); });
+                if (refreshBtn) refreshBtn.addEventListener('click', function () { loadTrends(true); });
+                if (saveGeoBtn && csrf) {
+                    saveGeoBtn.addEventListener('click', function () {
+                        var geo = geoSel.value || 'MX';
+                        saveGeoBtn.disabled = true;
+                        fetch(saveGeoUrl, {
+                            method: 'POST',
+                            headers: {
+                                'Accept': 'application/json',
+                                'Content-Type': 'application/json',
+                                'X-Requested-With': 'XMLHttpRequest',
+                                'X-CSRF-TOKEN': csrf.getAttribute('content') || ''
+                            },
+                            body: JSON.stringify({ geo: geo }),
+                            credentials: 'same-origin'
+                        })
+                        .then(function (r) { return r.json().catch(function () { return null; }); })
+                        .then(function (data) {
+                            if (statusEl) statusEl.textContent = (data && data.ok) ? ('Región por defecto guardada: ' + geo) : ((data && data.message) || 'No se pudo guardar.');
+                        })
+                        .catch(function () {
+                            if (statusEl) statusEl.textContent = 'No se pudo guardar la región.';
+                        })
+                        .finally(function () { saveGeoBtn.disabled = false; });
+                    });
+                }
+                loadTrends(false);
+            })();
+            </script>
+
             <section class="aspecto-card" style="margin-top:28px;padding:16px 18px;border:1px solid #e2e8f0;border-radius:12px;background:#f8fafc;max-width:52rem;">
                 <h3 class="aspecto-card-title" style="margin-bottom:10px;">Plataformas para explorar tendencias</h3>
                 <p class="hint-text" style="margin:0 0 14px;line-height:1.5;">Usalas como <strong>brújula editorial</strong>: buscá nichos, compará regiones y volvé acá para importar o publicar contenido con licencia o propio.</p>
                 <ul class="hint-text" style="margin:0;padding-left:1.15rem;line-height:1.65;list-style:disc;">
-                    <li><a href="https://trends.google.com/trending" class="text-link" target="_blank" rel="noopener noreferrer">Google Trends</a> — búsquedas y temas calientes por país e idioma.</li>
+                    <li><a href="https://trends.google.com/trending" class="text-link" target="_blank" rel="noopener noreferrer">Google Trends (web)</a> — mismo origen que el <strong>RSS integrado arriba</strong>, con más filtros en el sitio de Google.</li>
                     <li><a href="https://www.youtube.com/feed/trending" class="text-link" target="_blank" rel="noopener noreferrer">YouTube — Tendencias</a> — qué formato de vídeo arrasa (no reutilices clips sin permiso).</li>
                     <li><a href="https://www.reddit.com/r/popular/" class="text-link" target="_blank" rel="noopener noreferrer">Reddit Popular</a> y subreddits de tu nicho — ideal combinado con el importador de arriba.</li>
                     <li><a href="https://x.com/explore" class="text-link" target="_blank" rel="noopener noreferrer">X (Twitter) Explorar</a> — tendencias en tiempo real (API de pago si querés automatizar).</li>

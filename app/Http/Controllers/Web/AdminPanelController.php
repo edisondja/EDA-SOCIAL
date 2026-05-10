@@ -11,6 +11,7 @@ use App\Jobs\EnqueueMissingPosterJobsJob;
 use App\Jobs\GenerateVideoPosterProgressJob;
 use App\Jobs\GenerateVideoHlsJob;
 use App\Role;
+use App\Services\GoogleTrendsRssService;
 use App\Services\IntegrationConnectivityService;
 use App\Services\QueueMonitorService;
 use App\Services\RedditVideoImportService;
@@ -24,6 +25,7 @@ use App\VideoDailyView;
 use App\VideoReport;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Schema;
 
 class AdminPanelController extends Controller
@@ -464,6 +466,49 @@ class AdminPanelController extends Controller
         return $this->runApiForm($request, function () use ($request, $reddit) {
             return app(ApiReddit::class)->import($request, $reddit);
         }, 'Importación de Reddit completada.', true);
+    }
+
+    public function googleTrendsFetch(Request $request, GoogleTrendsRssService $trends)
+    {
+        $defaultGeo = (string) PlatformConfig::get('google_trends_geo', 'MX');
+        $geo = strtoupper((string) $request->query('geo', $defaultGeo));
+        $refresh = $request->boolean('refresh');
+
+        try {
+            $data = $trends->fetch($geo, 25, $refresh);
+
+            return response()->json([
+                'ok' => true,
+                'geo' => $data['geo'],
+                'items' => $data['items'],
+                'source_rss' => GoogleTrendsRssService::RSS_BASE . '?geo=' . rawurlencode($data['geo']),
+            ]);
+        } catch (\InvalidArgumentException $e) {
+            return response()->json(['ok' => false, 'message' => $e->getMessage()], 422);
+        } catch (\Throwable $e) {
+            report($e);
+
+            return response()->json([
+                'ok' => false,
+                'message' => config('app.debug') ? $e->getMessage() : 'No se pudo obtener Google Trends.',
+            ], 502);
+        }
+    }
+
+    public function saveGoogleTrendsGeo(Request $request)
+    {
+        $data = $request->validate([
+            'geo' => ['required', 'string', Rule::in(GoogleTrendsRssService::ALLOWED_GEO)],
+        ]);
+
+        PlatformConfig::set('google_trends_geo', $data['geo']);
+
+        if ($request->expectsJson() || $request->ajax() || $request->wantsJson()) {
+            return response()->json(['ok' => true, 'geo' => $data['geo']]);
+        }
+
+        return redirect()->route('admin.panel', ['section' => 'reddit'])
+            ->with('status', 'Región de Google Trends guardada.');
     }
 
     public function updateUserRole(Request $request, User $user)
