@@ -131,6 +131,23 @@ class Video extends Model
         return route('posts.show', ['video' => $this->id, 'slug' => $this->playSlug()]);
     }
 
+    /**
+     * Ruta relativa canónica (mismo patrón que legado tipo /playvideo/{id}/{slug}).
+     * Expuesto en JSON API como atributo `play_path` cuando se hace append.
+     */
+    public function getPlayPathAttribute(): string
+    {
+        return $this->playPath();
+    }
+
+    /**
+     * URL absoluta de la ficha pública (integraciones / apps: no usar solo /api/videos/{id} como enlace).
+     */
+    public function getPlayUrlAttribute(): string
+    {
+        return $this->playUrl();
+    }
+
     public function commentsStoreUrl(): string
     {
         return route('posts.comments.store', ['video' => $this->id, 'slug' => $this->playSlug()]);

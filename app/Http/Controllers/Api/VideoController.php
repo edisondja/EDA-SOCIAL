@@ -14,6 +14,14 @@ use Illuminate\Support\Str;
 
 class VideoController extends Controller
 {
+    /**
+     * Permalink web canónico `/playvideo/{id}/{slug}` en respuestas JSON (integración con enlaces compartibles).
+     */
+    private function appendWebPermalink(Video $video): void
+    {
+        $video->setAppends(array_merge($video->getAppends(), ['play_path', 'play_url']));
+    }
+
     public function index(Request $request)
     {
         $perPage = min(max((int) $request->input('per_page', 20), 1), 50);
@@ -46,7 +54,10 @@ class VideoController extends Controller
             });
         }
 
-        return response()->json($q->paginate($perPage));
+        $paginator = $q->paginate($perPage);
+        $paginator->getCollection()->each(fn (Video $v) => $this->appendWebPermalink($v));
+
+        return response()->json($paginator);
     }
 
     public function show(Video $video)
@@ -101,6 +112,9 @@ class VideoController extends Controller
         VideoViewTracker::record($video);
         $video->refresh();
 
+        $this->appendWebPermalink($video);
+        $related->each(fn (Video $v) => $this->appendWebPermalink($v));
+
         return response()->json([
             'video' => $video,
             'related_videos' => $related,
@@ -138,6 +152,7 @@ class VideoController extends Controller
         }
 
         $video = VideoPublisher::createFromValidated($request->user(), $data);
+        $this->appendWebPermalink($video);
 
         return response()->json($video, 201);
     }
