@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\PlatformSettingController as ApiPlatform;
 use App\Http\Controllers\Api\RedditImportController as ApiReddit;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Web\Concerns\SharesBranding;
+use App\Jobs\EnqueueMissingPosterJobsJob;
 use App\Jobs\GenerateVideoPosterProgressJob;
 use App\Jobs\GenerateVideoHlsJob;
 use App\Role;
@@ -600,11 +601,49 @@ class AdminPanelController extends Controller
                 'limit' => 'nullable|integer|min:1|max:300',
                 'scope' => 'nullable|string|in:missing,all',
                 'duration_aware' => 'nullable|in:0,1',
+                'scan_all_posts' => 'nullable|in:0,1',
             ]);
 
             $limit = isset($data['limit']) ? (int) $data['limit'] : 120;
             $scope = ($data['scope'] ?? 'missing') === 'all' ? 'all' : 'missing';
             $durationAware = ($data['duration_aware'] ?? '1') === '1';
+            $scanAllPosts = ($data['scan_all_posts'] ?? '0') === '1';
+
+            if ($scanAllPosts) {
+                $scope = 'missing';
+            }
+
+            $batchId = (string) \Illuminate\Support\Str::uuid();
+            $state = [
+                'batch_id' => $batchId,
+                'total' => 0,
+                'done' => 0,
+                'ok' => 0,
+                'failed' => 0,
+                'scope' => $scope,
+                'duration_aware' => $durationAware,
+                'status' => $scanAllPosts ? 'scanning' : 'running',
+                'scan_done' => !$scanAllPosts,
+                'recent' => [],
+                'videos' => [],
+                'completed' => [],
+                'started_at' => now()->toDateTimeString(),
+                'finished_at' => null,
+            ];
+
+            $this->putPosterBatchState($batchId, $state);
+            $this->rememberPosterBatchId($request, $batchId);
+
+            if ($scanAllPosts) {
+                EnqueueMissingPosterJobsJob::dispatch($batchId, $durationAware, false);
+
+                return response()->json([
+                    'ok' => true,
+                    'batch_id' => $batchId,
+                    'total' => 0,
+                    'message' => 'Escaneando todos los posts para encolar solo los que no tienen portada.',
+                ]);
+            }
 
             $query = Video::query()->orderBy('id');
             if ($scope === 'missing') {
@@ -632,25 +671,9 @@ class AdminPanelController extends Controller
                 ]);
             }
 
-            $batchId = (string) \Illuminate\Support\Str::uuid();
-            $state = [
-                'batch_id' => $batchId,
-                'total' => count($videoIds),
-                'done' => 0,
-                'ok' => 0,
-                'failed' => 0,
-                'scope' => $scope,
-                'duration_aware' => $durationAware,
-                'status' => 'running',
-                'recent' => [],
-                'videos' => $videoIds,
-                'completed' => [],
-                'started_at' => now()->toDateTimeString(),
-                'finished_at' => null,
-            ];
-
+            $state['total'] = count($videoIds);
+            $state['videos'] = $videoIds;
             $this->putPosterBatchState($batchId, $state);
-            $this->rememberPosterBatchId($request, $batchId);
 
             foreach ($videoIds as $videoId) {
                 GenerateVideoPosterProgressJob::dispatch($videoId, $batchId, $scope === 'all', $durationAware);
@@ -711,6 +734,7 @@ class AdminPanelController extends Controller
             'batch_id' => $batchId,
             'progress' => $progress,
             'done' => $doneFlag,
+            'scanning' => !empty($state['scan_done']) ? false : (($state['status'] ?? '') === 'scanning'),
             'counts' => [
                 'total' => $total,
                 'done' => $done,

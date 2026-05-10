@@ -929,6 +929,12 @@ RABBITMQ_ADMIN_QUEUE_NAMES=media,default</pre>
                                     <option value="{{ $val }}" {{ (int) old('poster_limit', 120) === (int) $val ? 'selected' : '' }}>{{ $lab }}</option>
                                 @endforeach
                             </select>
+                            <label class="checkbox-with-icon" style="margin-top:8px;display:block;">
+                                <span class="checkbox-with-icon-body checkbox-row" style="margin:0;">
+                                    <input type="checkbox" name="scan_all_posts" value="1" id="scan_all_posts_check">
+                                    Revisar TODOS los posts (sin límite) y encolar solo los que no tengan portada
+                                </span>
+                            </label>
                         </div>
                         <div>
                             <span class="field-label" style="display:block;margin-bottom:4px;">Ámbito</span>
@@ -998,6 +1004,9 @@ RABBITMQ_ADMIN_QUEUE_NAMES=media,default</pre>
                         .then(function (data) {
                             if (!data || !data.ok) return;
                             setProgress(data.progress || 0);
+                            if (data.scanning && text) {
+                                text.textContent = 'Escaneando todos los posts para detectar faltantes…';
+                            }
                             var c = data.counts || {};
                             if (counts) {
                                 counts.textContent = 'Total: ' + (c.total || 0) + ' · Hechos: ' + (c.done || 0) + ' · OK: ' + (c.ok || 0) + ' · Error: ' + (c.failed || 0);
