@@ -407,6 +407,11 @@
                     <h3 id="admin-queue-live-heading" class="text-base font-bold text-slate-900">Colas en tiempo real</h3>
                     <span id="admin-queue-live-updated" class="text-xs text-slate-500"></span>
                 </div>
+                <div class="mt-2 flex flex-wrap items-center gap-2">
+                    <button type="button" class="btn-secondary label-with-icon" id="admin_worker_media_start_btn">@include('web.partials.form-icon', ['name' => 'sparkles', 'size' => 14]) Encender worker media</button>
+                    <span id="admin_worker_media_badge" class="text-xs" style="display:inline-block;padding:2px 10px;border-radius:9999px;font-weight:700;background:#e2e8f0;color:#475569;">Estado: desconocido</span>
+                    <span id="admin_worker_media_pid" class="text-xs text-slate-500"></span>
+                </div>
                 @if($__rabbitMgmtUi !== '')
                     <p class="mt-2 flex flex-wrap items-center gap-2" style="margin-top:10px;">
                         <a href="{{ $__rabbitMgmtUi }}/" target="_blank" rel="noopener noreferrer" class="btn-secondary label-with-icon" style="display:inline-flex;align-items:center;gap:6px;text-decoration:none;">
@@ -439,10 +444,15 @@
             <script>
             (function () {
                 var url = @json(route('admin.queue_status', [], false));
+                var workerStatusUrl = @json(route('admin.worker_media_status', [], false));
+                var workerStartUrl = @json(route('admin.worker_media_start', [], false));
                 var tbody = document.getElementById('admin-queue-live-tbody');
                 var errEl = document.getElementById('admin-queue-live-error');
                 var metaEl = document.getElementById('admin-queue-live-meta');
                 var updatedEl = document.getElementById('admin-queue-live-updated');
+                var workerBtn = document.getElementById('admin_worker_media_start_btn');
+                var workerBadge = document.getElementById('admin_worker_media_badge');
+                var workerPid = document.getElementById('admin_worker_media_pid');
                 if (!tbody || !url) return;
 
                 function esc(s) {
@@ -496,8 +506,65 @@
                             }
                         });
                 }
+
+                function renderWorker(data) {
+                    if (!workerBadge) return;
+                    var running = !!(data && data.running);
+                    workerBadge.textContent = running ? 'Worker media: activo' : 'Worker media: apagado';
+                    workerBadge.style.background = running ? '#dcfce7' : '#fee2e2';
+                    workerBadge.style.color = running ? '#166534' : '#991b1b';
+                    if (workerPid) {
+                        workerPid.textContent = data && data.pid ? ('PID: ' + data.pid) : '';
+                    }
+                    if (workerBtn) {
+                        workerBtn.disabled = running;
+                    }
+                }
+
+                function tickWorker() {
+                    fetch(workerStatusUrl, { headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' })
+                        .then(function (r) { return r.ok ? r.json() : null; })
+                        .then(function (data) { if (data) renderWorker(data); })
+                        .catch(function () {});
+                }
+
+                if (workerBtn) {
+                    workerBtn.addEventListener('click', function () {
+                        workerBtn.disabled = true;
+                        fetch(workerStartUrl, {
+                            method: 'POST',
+                            headers: {
+                                'Accept': 'application/json',
+                                'X-Requested-With': 'XMLHttpRequest',
+                                'X-CSRF-TOKEN': (document.querySelector('meta[name="csrf-token"]') || {}).content || ''
+                            },
+                            credentials: 'same-origin'
+                        })
+                        .then(function (r) { return r.json().catch(function () { return null; }); })
+                        .then(function (data) {
+                            if (!data || !data.ok) {
+                                if (errEl) {
+                                    errEl.textContent = (data && data.message) ? data.message : 'No se pudo encender el worker media.';
+                                    errEl.classList.remove('hidden');
+                                }
+                                workerBtn.disabled = false;
+                                return;
+                            }
+                            renderWorker(data);
+                        })
+                        .catch(function () {
+                            if (errEl) {
+                                errEl.textContent = 'No se pudo encender el worker media.';
+                                errEl.classList.remove('hidden');
+                            }
+                            workerBtn.disabled = false;
+                        });
+                    });
+                }
                 tick();
+                tickWorker();
                 setInterval(tick, 2800);
+                setInterval(tickWorker, 5000);
             })();
             </script>
 

@@ -66,6 +66,8 @@ Route::middleware(['auth', 'admin_or_mod_web'])->prefix('admin')->group(function
     Route::get('/colas/estado', 'Web\AdminPanelController@queueMonitorStatus')
         ->middleware('throttle:60,1')
         ->name('admin.queue_status');
+    Route::get('/workers/media/estado', 'Web\AdminPanelController@workerMediaStatus')->name('admin.worker_media_status');
+    Route::post('/workers/media/encender', 'Web\AdminPanelController@startWorkerMedia')->name('admin.worker_media_start');
     Route::post('/reddit/importar', 'Web\AdminPanelController@importReddit')->name('admin.reddit');
     Route::post('/usuarios/{user}/rol', 'Web\AdminPanelController@updateUserRole')->name('admin.user_role');
     Route::post('/videos/{video}/bloquear', 'Web\AdminPanelController@blockVideo')->name('admin.video_block');

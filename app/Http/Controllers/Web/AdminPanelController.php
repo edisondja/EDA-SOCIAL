@@ -393,6 +393,79 @@ class AdminPanelController extends Controller
         return response()->json($queueMonitorService->snapshot());
     }
 
+    public function workerMediaStatus()
+    {
+        $pid = (int) Cache::get($this->workerMediaPidKey(), 0);
+        $running = $pid > 0 ? $this->isProcessRunning($pid) : false;
+
+        if ($pid > 0 && !$running) {
+            Cache::forget($this->workerMediaPidKey());
+            $pid = 0;
+        }
+
+        return response()->json([
+            'ok' => true,
+            'running' => $running,
+            'pid' => $pid > 0 ? $pid : null,
+            'queue' => 'media',
+        ]);
+    }
+
+    public function startWorkerMedia(Request $request)
+    {
+        $existingPid = (int) Cache::get($this->workerMediaPidKey(), 0);
+        if ($existingPid > 0 && $this->isProcessRunning($existingPid)) {
+            return response()->json([
+                'ok' => true,
+                'started' => false,
+                'running' => true,
+                'pid' => $existingPid,
+                'message' => 'El worker media ya estaba activo.',
+            ]);
+        }
+
+        try {
+            $php = trim((string) env('PHP_CLI_BINARY', 'php'));
+            $artisan = base_path('artisan');
+            $logPath = storage_path('logs/worker-media.log');
+
+            $cmd = sprintf(
+                'cd %s && nohup %s %s queue:work rabbitmq --queue=media,default --tries=3 --timeout=1200 >> %s 2>&1 & echo $!',
+                escapeshellarg(base_path()),
+                escapeshellarg($php),
+                escapeshellarg($artisan),
+                escapeshellarg($logPath)
+            );
+
+            $pidRaw = shell_exec($cmd);
+            $pid = (int) trim((string) $pidRaw);
+
+            if ($pid <= 0 || !$this->isProcessRunning($pid)) {
+                return response()->json([
+                    'ok' => false,
+                    'message' => 'No se pudo iniciar el worker. Revisa PHP_CLI_BINARY, permisos y logs de worker.',
+                ], 500);
+            }
+
+            Cache::put($this->workerMediaPidKey(), $pid, now()->addDays(2));
+
+            return response()->json([
+                'ok' => true,
+                'started' => true,
+                'running' => true,
+                'pid' => $pid,
+                'message' => 'Worker media iniciado correctamente.',
+            ]);
+        } catch (\Throwable $e) {
+            report($e);
+
+            return response()->json([
+                'ok' => false,
+                'message' => config('app.debug') ? $e->getMessage() : 'No se pudo iniciar el worker media.',
+            ], 500);
+        }
+    }
+
     public function importReddit(Request $request, RedditVideoImportService $reddit)
     {
         return $this->runApiForm($request, function () use ($request, $reddit) {
@@ -1075,5 +1148,28 @@ class AdminPanelController extends Controller
             : ('admin:poster-batch:last:session:' . $request->session()->getId());
 
         return (string) Cache::get($key, '');
+    }
+
+    private function workerMediaPidKey(): string
+    {
+        return 'admin:worker:media:pid';
+    }
+
+    private function isProcessRunning(int $pid): bool
+    {
+        if ($pid <= 0) {
+            return false;
+        }
+
+        if (function_exists('posix_kill')) {
+            try {
+                return @posix_kill($pid, 0);
+            } catch (\Throwable $e) {
+            }
+        }
+
+        $out = @shell_exec('ps -p ' . (int) $pid . ' -o pid=');
+
+        return is_string($out) && trim($out) !== '';
     }
 }
