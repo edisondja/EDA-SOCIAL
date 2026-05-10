@@ -74,6 +74,8 @@ class VideoPublisher
             GenerateVideoCardMediaJob::dispatch($video->id)->afterResponse();
         }
 
+        SitemapRegenerator::afterContentMutation();
+
         return $video->load('channel', 'author', 'media', 'categories', 'hashtags');
     }
 }

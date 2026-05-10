@@ -22,7 +22,7 @@
                 'usuarios' => ['label' => 'Usuarios', 'icon' => 'user-group'],
                 'videos' => ['label' => 'Videos', 'icon' => 'film'],
                 'reportes' => ['label' => 'Reportes', 'icon' => 'no-symbol'],
-                'reddit' => ['label' => 'Reddit', 'icon' => 'chat-bubble-left'],
+                'reddit' => ['label' => 'Reddit / tendencias', 'icon' => 'chat-bubble-left'],
             ];
             if (optional(auth()->user()->role)->name === 'admin') {
                 $__adminTabs['metricas'] = ['label' => 'Métricas', 'icon' => 'chart-bar'];
@@ -100,10 +100,7 @@
                     @include('web.partials.form-icon', ['name' => 'arrow-path', 'size' => 16])
                     <span class="checkbox-with-icon-body checkbox-row" style="margin:0;"><input type="checkbox" name="use_router_links" {{ old('use_router_links', $s('use_router_links','1')) === '1' ? 'checked' : '' }}> Enlaces SPA (React Router) en el feed</span>
                 </label>
-                <label class="checkbox-with-icon">
-                    @include('web.partials.form-icon', ['name' => 'link', 'size' => 16])
-                    <span class="checkbox-with-icon-body checkbox-row" style="margin:0;"><input type="checkbox" name="sitemap_include_all_posts" value="1" {{ old('sitemap_include_all_posts', $s('sitemap_include_all_posts','1')) === '1' ? 'checked' : '' }}> Incluir todas las publicaciones en el sitemap (y paginación de explorar)</span>
-                </label>
+                <p class="hint-text" style="margin-top:6px;">El sitemap <strong>solo incluye publicaciones</strong> activas y publicadas, en archivos de <strong>20 URLs</strong> (<code>/sitemap-posts-1.xml</code>, etc.) enlazados desde <code>/sitemap.xml</code>. Se <strong>regenera solo</strong> al crear o editar un post, importar, moderar vídeo o al pulsar «Generar» abajo.</p>
                 <label class="field-label label-with-icon" for="admin_ga_measurement_id">@include('web.partials.form-icon', ['name' => 'chart-bar']) Google Analytics — ID de medición</label>
                 <input id="admin_ga_measurement_id" type="text" name="google_analytics_measurement_id" value="{{ old('google_analytics_measurement_id', $s('google_analytics_measurement_id')) }}" maxlength="40" placeholder="G-XXXXXXXXXX o UA-XXXXXXX-X" autocomplete="off" autocapitalize="characters">
                 <p class="hint-text" style="margin-top:6px;">Opcional. Pegá el ID de la propiedad GA4 (<strong>G-…</strong>) o Universal Analytics (<strong>UA-…</strong>). Dejalo vacío para no cargar el script en el sitio público.</p>
@@ -116,16 +113,10 @@
                     <button type="button" class="btn-secondary label-with-icon" id="admin_seo_copy_sitemap_btn">@include('web.partials.form-icon', ['name' => 'link']) Copiar enlace</button>
                     <a href="https://search.google.com/search-console" target="_blank" rel="noopener noreferrer" class="btn-primary label-with-icon">@include('web.partials.form-icon', ['name' => 'link']) Enviar a Google</a>
                 </div>
-                <p class="hint-text" style="margin-top:8px;">URLs actualmente incluidas en sitemap: <strong>{{ number_format((int) ($seoSitemapLinksCount ?? 0), 0, ',', '.') }}</strong></p>
+                <p class="hint-text" style="margin-top:8px;">URLs de posts en el sitemap: <strong>{{ number_format((int) ($seoSitemapLinksCount ?? 0), 0, ',', '.') }}</strong> (más el índice <code>sitemap.xml</code> y un archivo por cada 20 posts).</p>
                 <form id="admin_seo_generate_sitemap_form" style="margin-top:10px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;">
                     @csrf
-                    <label class="checkbox-with-icon" style="margin:0;">
-                        <span class="checkbox-with-icon-body checkbox-row" style="margin:0;">
-                            <input type="checkbox" id="admin_seo_generate_all_posts" value="1" {{ old('sitemap_include_all_posts', $s('sitemap_include_all_posts','1')) === '1' ? 'checked' : '' }}>
-                            Generar archivo incluyendo todas las publicaciones
-                        </span>
-                    </label>
-                    <button type="submit" class="btn-secondary label-with-icon" id="admin_seo_generate_sitemap_btn">@include('web.partials.form-icon', ['name' => 'arrow-path']) Generar sitemap.xml ahora</button>
+                    <button type="submit" class="btn-secondary label-with-icon" id="admin_seo_generate_sitemap_btn">@include('web.partials.form-icon', ['name' => 'arrow-path']) Generar sitemap en /public ahora</button>
                 </form>
                 <div id="admin_sitemap_progress_wrap" style="display:none;margin-top:10px;">
                     <div style="height:10px;border-radius:999px;background:#e2e8f0;overflow:hidden;">
@@ -161,7 +152,6 @@
                     var form = document.getElementById('admin_seo_generate_sitemap_form');
                     if (!form) return;
                     var btn = document.getElementById('admin_seo_generate_sitemap_btn');
-                    var includeAll = document.getElementById('admin_seo_generate_all_posts');
                     var wrap = document.getElementById('admin_sitemap_progress_wrap');
                     var bar = document.getElementById('admin_sitemap_progress_bar');
                     var text = document.getElementById('admin_sitemap_progress_text');
@@ -215,7 +205,6 @@
                         var fd = new FormData();
                         fd.append('_token', csrf.getAttribute('content'));
                         fd.append('_section', 'seo');
-                        fd.append('include_all_posts', includeAll && includeAll.checked ? '1' : '0');
 
                         fetch(postUrl, {
                             method: 'POST',
@@ -1330,7 +1319,8 @@ RABBITMQ_ADMIN_QUEUE_NAMES=media,default</pre>
         @endif
 
         @if($section === 'reddit')
-            <h2>Importar desde Reddit</h2>
+            <h2>Reddit e ideas de tendencias</h2>
+            <p class="hint-text" style="max-width:48rem;margin-bottom:16px;">Importá un post con vídeo desde Reddit. Más abajo tenés enlaces a otras herramientas públicas para <strong>detectar qué está pegando</strong> antes de curar contenido para la plataforma (siempre respetá derechos de autor y los términos de cada sitio).</p>
             <form method="post" action="{{ route('admin.reddit') }}">
                 @csrf
                 <input type="hidden" name="_section" value="{{ $section }}">
@@ -1348,6 +1338,23 @@ RABBITMQ_ADMIN_QUEUE_NAMES=media,default</pre>
                 </select>
                 <button type="submit" class="btn-primary label-with-icon" style="margin-top:12px;">@include('web.partials.form-icon', ['name' => 'arrow-down-tray']) Importar</button>
             </form>
+
+            <section class="aspecto-card" style="margin-top:28px;padding:16px 18px;border:1px solid #e2e8f0;border-radius:12px;background:#f8fafc;max-width:52rem;">
+                <h3 class="aspecto-card-title" style="margin-bottom:10px;">Plataformas para explorar tendencias</h3>
+                <p class="hint-text" style="margin:0 0 14px;line-height:1.5;">Usalas como <strong>brújula editorial</strong>: buscá nichos, compará regiones y volvé acá para importar o publicar contenido con licencia o propio.</p>
+                <ul class="hint-text" style="margin:0;padding-left:1.15rem;line-height:1.65;list-style:disc;">
+                    <li><a href="https://trends.google.com/trending" class="text-link" target="_blank" rel="noopener noreferrer">Google Trends</a> — búsquedas y temas calientes por país e idioma.</li>
+                    <li><a href="https://www.youtube.com/feed/trending" class="text-link" target="_blank" rel="noopener noreferrer">YouTube — Tendencias</a> — qué formato de vídeo arrasa (no reutilices clips sin permiso).</li>
+                    <li><a href="https://www.reddit.com/r/popular/" class="text-link" target="_blank" rel="noopener noreferrer">Reddit Popular</a> y subreddits de tu nicho — ideal combinado con el importador de arriba.</li>
+                    <li><a href="https://x.com/explore" class="text-link" target="_blank" rel="noopener noreferrer">X (Twitter) Explorar</a> — tendencias en tiempo real (API de pago si querés automatizar).</li>
+                    <li><a href="https://ads.tiktok.com/business/creativecenter/" class="text-link" target="_blank" rel="noopener noreferrer">TikTok Creative Center</a> — hashtags, audios y referencias comerciales (orientado a creadores y marcas).</li>
+                    <li><a href="https://trends.pinterest.com/" class="text-link" target="_blank" rel="noopener noreferrer">Pinterest Trends</a> — tendencias visuales por mercado.</li>
+                    <li><a href="https://explodingtopics.com/" class="text-link" target="_blank" rel="noopener noreferrer">Exploding Topics</a> — temas emergentes (capa gratuita limitada).</li>
+                    <li><a href="https://buzzsumo.com/" class="text-link" target="_blank" rel="noopener noreferrer">BuzzSumo</a> — contenido muy compartido en la web (prueba de pago).</li>
+                    <li><a href="https://www.pexels.com/" class="text-link" target="_blank" rel="noopener noreferrer">Pexels</a> / <a href="https://pixabay.com/videos/" class="text-link" target="_blank" rel="noopener noreferrer">Pixabay</a> — vídeo e imagen con licencia clara para rellenar categorías sin riesgo legal.</li>
+                </ul>
+                <p class="hint-text" style="margin:14px 0 0;line-height:1.5;color:#64748b;">Recordatorio: tendencia ≠ derecho a copiar. Preferí acuerdos, material con licencia, embeds o contenido original; YouTube, TikTok y Reddit tienen reglas estrictas sobre descarga y republicación.</p>
+            </section>
         @endif
     </div>
 </main>

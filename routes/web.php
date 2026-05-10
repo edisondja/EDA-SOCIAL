@@ -47,6 +47,14 @@ Route::middleware('auth')->group(function () {
     Route::post('/cuenta/avatar', 'Web\AccountController@updateAvatar')
         ->middleware('throttle:20,60')
         ->name('account.avatar');
+    Route::get('/cuenta/mis-videos', 'Web\MyVideosController@index')->name('account.videos.index');
+    Route::get('/cuenta/mis-videos/{video}/editar', 'Web\MyVideosController@edit')
+        ->whereNumber('video')
+        ->name('account.videos.edit');
+    Route::put('/cuenta/mis-videos/{video}', 'Web\MyVideosController@update')
+        ->whereNumber('video')
+        ->middleware('throttle:30,1')
+        ->name('account.videos.update');
 });
 
 Route::middleware(['auth', 'admin_or_mod_web'])->prefix('admin')->group(function () {
@@ -90,5 +98,8 @@ Route::middleware(['auth', 'admin_or_mod_web'])->prefix('admin')->group(function
     Route::post('/usuarios/{user}/ban', 'Web\AdminPanelController@banUser')->name('admin.user_ban');
 });
 
-Route::get('/sitemap.xml', 'SitemapController@show');
+Route::get('/sitemap.xml', 'SitemapController@showIndex')->name('sitemap.index');
+Route::get('/sitemap-posts-{page}.xml', 'SitemapController@showPostsChunk')
+    ->whereNumber('page')
+    ->name('sitemap.posts');
 Route::get('/robots.txt', 'RobotsController@show');

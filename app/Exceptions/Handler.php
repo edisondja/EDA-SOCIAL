@@ -69,6 +69,11 @@ class Handler extends ExceptionHandler
             return false;
         }
 
+        $path = ltrim((string) $request->path(), '/');
+        if ($path === 'sitemap.xml' || preg_match('/^sitemap-posts-\d+\.xml$/', $path) === 1) {
+            return false;
+        }
+
         return $exception instanceof ModelNotFoundException
             || $exception instanceof NotFoundHttpException;
     }

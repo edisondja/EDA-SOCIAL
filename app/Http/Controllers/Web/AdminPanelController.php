@@ -178,18 +178,10 @@ class AdminPanelController extends Controller
             }
             $seoSitemapUrl = $base . '/sitemap.xml';
 
-            $publishedVideos = (int) Video::query()
+            $seoSitemapLinksCount = (int) Video::query()
                 ->where('is_published', true)
                 ->where('moderation_status', 'active')
                 ->count();
-            $includeAllPosts = PlatformConfig::get('sitemap_include_all_posts', '1') === '1';
-            if ($includeAllPosts) {
-                $explorePages = (int) ceil($publishedVideos / 20);
-                $explorePages = max(1, min($explorePages, 5000));
-                $seoSitemapLinksCount = $explorePages + $publishedVideos;
-            } else {
-                $seoSitemapLinksCount = 1;
-            }
         }
 
         $bannerTemplates = [];

@@ -10,6 +10,10 @@
     <h1 class="text-2xl font-bold tracking-tight text-slate-900">Mi cuenta</h1>
     <p class="mt-2 text-sm text-slate-500">Datos de tu perfil en la plataforma.</p>
 
+    <p class="mt-6">
+        <a href="{{ route('account.videos.index') }}" class="eda-btn-secondary !inline-flex !px-4 !py-2 text-sm">Mis publicaciones</a>
+    </p>
+
     <section class="mt-8 rounded-xl border border-slate-100 bg-slate-50/50 p-5">
         <h2 class="text-sm font-semibold uppercase tracking-wide text-slate-400">Foto de perfil</h2>
         <div class="mt-4 flex flex-col items-center gap-6 sm:flex-row sm:items-start">

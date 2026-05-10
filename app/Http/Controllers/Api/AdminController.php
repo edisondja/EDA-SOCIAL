@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\ModerationAction;
+use App\Services\SitemapRegenerator;
 use App\Role;
 use App\User;
 use App\UserBan;
@@ -80,6 +81,8 @@ class AdminController extends Controller
             'payload' => $data,
         ]);
 
+        SitemapRegenerator::afterContentMutation();
+
         return response()->json(['ok' => true, 'video' => $video->fresh()]);
     }
 
@@ -99,6 +102,8 @@ class AdminController extends Controller
             'action' => 'activate_video',
             'payload' => [],
         ]);
+
+        SitemapRegenerator::afterContentMutation();
 
         return response()->json(['ok' => true, 'video' => $video->fresh()]);
     }
@@ -139,6 +144,8 @@ class AdminController extends Controller
             'action' => 'update_video',
             'payload' => ['fields' => array_keys($data)],
         ]);
+
+        SitemapRegenerator::afterContentMutation();
 
         return response()->json(['ok' => true, 'video' => $video->fresh()]);
     }

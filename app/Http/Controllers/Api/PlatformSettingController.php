@@ -3,7 +3,9 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\SitemapController;
 use App\PlatformSetting;
+use App\Video;
 use App\PlatformTextSetting;
 use App\Support\PlatformConfig;
 use App\Support\VideoAdPresentation;
@@ -286,7 +288,7 @@ class PlatformSettingController extends Controller
         }
 
         try {
-            app(\App\Http\Controllers\SitemapController::class)->writeToPath($path);
+            app(\App\Http\Controllers\SitemapController::class)->writePublicSitemaps();
         } catch (\Throwable $e) {
             report($e);
 
@@ -298,10 +300,20 @@ class PlatformSettingController extends Controller
 
         $url = $request->getSchemeAndHttpHost() . '/sitemap.xml';
 
+        $published = (int) Video::query()
+            ->where('is_published', true)
+            ->where('moderation_status', 'active')
+            ->count();
+        $chunkFiles = $published === 0
+            ? 0
+            : (int) ceil($published / SitemapController::POSTS_PER_SITEMAP);
+
         return response()->json([
             'ok' => true,
-            'path' => 'public/sitemap.xml',
+            'path' => 'public/sitemap.xml + public/sitemap-posts-*.xml',
             'public_url' => $url,
+            'post_urls' => $published,
+            'chunk_files' => $chunkFiles,
         ]);
     }
 

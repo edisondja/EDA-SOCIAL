@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Jobs\ProcessVideoMediaJob;
+use App\Services\SitemapRegenerator;
 use App\Services\RedditVideoImportService;
 use App\Video;
 use Illuminate\Http\Request;
@@ -76,6 +77,8 @@ class RedditImportController extends Controller
         if (! empty($data['category_ids'])) {
             $video->categories()->sync(array_values(array_unique($data['category_ids'])));
         }
+
+        SitemapRegenerator::afterContentMutation();
 
         return response()->json($video->load('channel', 'author', 'media', 'categories'), 201);
     }

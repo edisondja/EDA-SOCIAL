@@ -91,7 +91,8 @@
                 <a href="{{ route('explore.index') }}" class="eda-btn-primary {{ request()->routeIs('explore.index') ? 'blade-nav-active opacity-90' : '' }} !px-4 !py-2 !text-sm">Inicio</a>
                 @auth
                     <a href="{{ route('publish.create') }}" class="eda-btn-primary js-open-publish-modal !bg-slate-900 !px-4 !py-2 !text-sm hover:!brightness-110">Publicar</a>
-                    <a href="{{ route('account.show') }}" class="eda-btn-secondary !px-4 !py-2 text-sm {{ request()->routeIs('account.*') ? 'border-slate-400 bg-slate-100' : '' }}">Mi cuenta</a>
+                    <a href="{{ route('account.videos.index') }}" class="eda-btn-secondary !px-4 !py-2 text-sm {{ request()->routeIs('account.videos.*') ? 'border-slate-400 bg-slate-100' : '' }}">Mis vídeos</a>
+                    <a href="{{ route('account.show') }}" class="eda-btn-secondary !px-4 !py-2 text-sm {{ request()->routeIs('account.show', 'account.avatar') ? 'border-slate-400 bg-slate-100' : '' }}">Mi cuenta</a>
                     @if(in_array(optional(auth()->user()->role)->name, ['admin', 'moderator'], true))
                         <a href="{{ route('admin.panel', ['section' => 'seo']) }}" class="eda-btn-secondary !px-4 !py-2 text-sm {{ request()->is('admin*') ? 'border-slate-400 bg-slate-100' : '' }}">Admin</a>
                     @endif
@@ -135,6 +136,7 @@
                     </div>
                 </div>
                 <a href="{{ route('publish.create') }}" class="eda-btn-primary js-open-publish-modal w-full justify-center bg-slate-900 hover:!brightness-110">Publicar</a>
+                <a href="{{ route('account.videos.index') }}" class="eda-btn-secondary w-full justify-center">Mis vídeos</a>
                 <a href="{{ route('account.show') }}" class="eda-btn-secondary w-full justify-center">Mi cuenta</a>
                 @if(in_array(optional(auth()->user()->role)->name, ['admin', 'moderator'], true))
                     <a href="{{ route('admin.panel', ['section' => 'seo']) }}" class="eda-btn-secondary w-full justify-center">Administración</a>
