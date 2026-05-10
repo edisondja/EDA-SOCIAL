@@ -385,9 +385,11 @@
                 </div>
             </div>
             @php
-                $__rabbitMgmtUi = rtrim((string) env('RABBITMQ_MANAGEMENT_URL', ''), '/');
-                if ($__rabbitMgmtUi === '' && trim((string) env('RABBITMQ_HOST', '')) !== '') {
-                    $__rabbitMgmtUi = 'http://' . trim((string) env('RABBITMQ_HOST')) . ':' . (int) env('RABBITMQ_MANAGEMENT_PORT', 15672);
+                $__rq = config('queue.connections.rabbitmq', []);
+                $__rabbitMgmtUi = rtrim((string) ($__rq['management_url'] ?? ''), '/');
+                $__rh = trim((string) (($__rq['hosts'][0]['host'] ?? '')));
+                if ($__rabbitMgmtUi === '' && $__rh !== '') {
+                    $__rabbitMgmtUi = 'http://' . $__rh . ':' . (int) ($__rq['management_port'] ?? 15672);
                 }
             @endphp
 

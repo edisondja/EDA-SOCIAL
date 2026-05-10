@@ -31,7 +31,8 @@ class IntegrationConnectivityService
     {
         $cacheDriver = (string) config('cache.default', 'file');
         $usesRedis = $cacheDriver === 'redis';
-        $host = trim((string) env('REDIS_HOST', ''));
+        /* config() para que funcione con `php artisan config:cache` (env() fuera de config/ devuelve null). */
+        $host = trim((string) config('database.redis.default.host', ''));
         if ($host === '') {
             return [
                 'uses_redis_for_cache' => $usesRedis,
@@ -86,27 +87,31 @@ class IntegrationConnectivityService
      */
     public function rabbitMqSnapshot(): array
     {
-        $host = trim((string) env('RABBITMQ_HOST', ''));
+        $rabbit = config('queue.connections.rabbitmq', []);
+        $firstHost = is_array($rabbit['hosts'] ?? null) ? ($rabbit['hosts'][0] ?? []) : [];
+        $host = trim((string) ($firstHost['host'] ?? ''));
         if ($host === '') {
             return [
                 'host_configured' => false,
                 'amqp_reachable' => null,
                 'management_ok' => null,
                 'label' => 'Sin configurar',
-                'detail' => 'Definí RABBITMQ_HOST (y credenciales) en .env para el broker AMQP.',
+                'detail' => 'Definí RABBITMQ_HOST (y credenciales) en .env para el broker AMQP. Si ya lo tenés y ves esto tras `config:cache`, ejecutá `php artisan config:clear` y volvé a cachear.',
             ];
         }
 
-        $port = (int) env('RABBITMQ_PORT', 5672);
+        $port = (int) ($firstHost['port'] ?? 5672);
+        $amqpUser = (string) ($firstHost['user'] ?? 'guest');
+        $amqpPass = (string) ($firstHost['password'] ?? 'guest');
         $amqpOk = $this->tcpReachable($host, $port, 3);
 
-        $mgmtBase = rtrim((string) env('RABBITMQ_MANAGEMENT_URL', ''), '/');
+        $mgmtBase = rtrim((string) ($rabbit['management_url'] ?? ''), '/');
         if ($mgmtBase === '') {
-            $mgmtBase = 'http://'.$host.':'.(int) env('RABBITMQ_MANAGEMENT_PORT', 15672);
+            $mgmtBase = 'http://'.$host.':'.(int) ($rabbit['management_port'] ?? 15672);
         }
 
-        $mgmtUser = (string) (env('RABBITMQ_MANAGEMENT_USER') ?: env('RABBITMQ_USER', 'guest'));
-        $mgmtPass = (string) (env('RABBITMQ_MANAGEMENT_PASSWORD') ?: env('RABBITMQ_PASSWORD', 'guest'));
+        $mgmtUser = (string) ($rabbit['management_user'] ?: $amqpUser);
+        $mgmtPass = (string) ($rabbit['management_password'] ?: $amqpPass);
 
         $mgmtOk = null;
         $mgmtDetail = '';

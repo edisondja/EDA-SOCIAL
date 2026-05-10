@@ -118,7 +118,8 @@ class AppServiceProvider extends ServiceProvider
         }
         // RabbitMQ: Laravel no lo trae por defecto. Si instalas vladimir-yuldashev/laravel-queue-rabbitmq
         // y defines RABBITMQ_*, puedes poner QUEUE_CONNECTION=rabbitmq en .env.
-        if (PlatformConfig::get('feature_rabbit_queue') === '1' && env('RABBITMQ_HOST')) {
+        $rabbitHost = trim((string) (config('queue.connections.rabbitmq.hosts.0.host') ?? ''));
+        if (PlatformConfig::get('feature_rabbit_queue') === '1' && $rabbitHost !== '') {
             if (class_exists(\VladimirYuldashev\LaravelQueueRabbitMQ\Queue\Connectors\RabbitMQConnector::class)) {
                 config(['queue.default' => 'rabbitmq']);
             }

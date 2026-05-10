@@ -77,8 +77,9 @@ return [
             'connection' => 'default',
             'hosts' => [
                 [
-                    'host' => env('RABBITMQ_HOST', '127.0.0.1'),
-                    'port' => env('RABBITMQ_PORT', 5672),
+                    /* Sin default: si no está en .env queda vacío y el panel no asume broker local. */
+                    'host' => env('RABBITMQ_HOST'),
+                    'port' => (int) env('RABBITMQ_PORT', 5672),
                     'user' => env('RABBITMQ_USER', 'guest'),
                     'password' => env('RABBITMQ_PASSWORD', 'guest'),
                     'vhost' => env('RABBITMQ_VHOST', '/'),
@@ -87,6 +88,11 @@ return [
             'options' => [
             ],
             'worker' => env('RABBITMQ_WORKER', 'default'),
+            /* Lectura vía config() (compatible con php artisan config:cache); no uses env() en servicios. */
+            'management_url' => env('RABBITMQ_MANAGEMENT_URL'),
+            'management_port' => (int) env('RABBITMQ_MANAGEMENT_PORT', 15672),
+            'management_user' => env('RABBITMQ_MANAGEMENT_USER'),
+            'management_password' => env('RABBITMQ_MANAGEMENT_PASSWORD'),
         ],
 
     ],
