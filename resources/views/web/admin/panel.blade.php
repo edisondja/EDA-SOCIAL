@@ -957,7 +957,16 @@ RABBITMQ_ADMIN_QUEUE_NAMES=media,default</pre>
                     <p id="admin_poster_progress_counts" class="hint-text" style="margin-top:4px;"></p>
                     <div id="admin_poster_recent_ok" class="hint-text" style="margin-top:6px;max-height:130px;overflow:auto;background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:8px;"></div>
                 </div>
-                <p class="hint-text" style="margin:10px 0 0;">Necesita worker activo: <code style="font-size:11px;">php artisan queue:work rabbitmq --queue=media,default --tries=3 --timeout=1200</code></p>
+                <div style="margin-top:12px;padding-top:12px;border-top:1px solid #e2e8f0;">
+                    <p class="hint-text" style="margin:0 0 8px;">Para procesar jobs de <strong>miniatura / vista previa</strong> necesitás el worker de la cola <code>media</code>. Podés encenderlo aquí o en <a href="{{ route('admin.panel', ['section' => 'integraciones']) }}" class="text-link">Colas e integraciones</a>.</p>
+                    <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;">
+                        <button type="button" class="btn-secondary label-with-icon" id="admin_worker_media_start_btn_videos">@include('web.partials.form-icon', ['name' => 'sparkles', 'size' => 14]) Encender worker media</button>
+                        <span id="admin_worker_media_badge_videos" class="text-xs" style="display:inline-block;padding:2px 10px;border-radius:9999px;font-weight:700;background:#e2e8f0;color:#475569;">Estado: …</span>
+                        <span id="admin_worker_media_pid_videos" class="text-xs" style="color:#64748b;"></span>
+                    </div>
+                    <p id="admin_worker_media_err_videos" class="hint-text hidden" style="margin-top:8px;color:#b91c1c;" role="alert"></p>
+                    <p class="hint-text" style="margin:10px 0 0;font-size:11px;">CLI: <code style="font-size:11px;">php artisan queue:work rabbitmq --queue=media,default --tries=3 --timeout=1200</code></p>
+                </div>
             </section>
             <script>
                 (function () {
@@ -1079,6 +1088,75 @@ RABBITMQ_ADMIN_QUEUE_NAMES=media,default</pre>
                             stopPolling();
                         });
                     });
+
+                    var workerStatusUrlV = @json(route('admin.worker_media_status', [], false));
+                    var workerStartUrlV = @json(route('admin.worker_media_start', [], false));
+                    var workerBtnV = document.getElementById('admin_worker_media_start_btn_videos');
+                    var workerBadgeV = document.getElementById('admin_worker_media_badge_videos');
+                    var workerPidV = document.getElementById('admin_worker_media_pid_videos');
+                    var workerErrV = document.getElementById('admin_worker_media_err_videos');
+
+                    function renderWorkerV(data) {
+                        if (!workerBadgeV) return;
+                        var running = !!(data && data.running);
+                        workerBadgeV.textContent = running ? 'Worker media: activo' : 'Worker media: apagado';
+                        workerBadgeV.style.background = running ? '#dcfce7' : '#fee2e2';
+                        workerBadgeV.style.color = running ? '#166534' : '#991b1b';
+                        if (workerPidV) {
+                            workerPidV.textContent = data && data.pid ? ('PID: ' + data.pid) : '';
+                        }
+                        if (workerBtnV) {
+                            workerBtnV.disabled = running;
+                        }
+                    }
+
+                    function tickWorkerV() {
+                        if (!workerBadgeV) return;
+                        fetch(workerStatusUrlV, { headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' })
+                            .then(function (r) { return r.ok ? r.json() : null; })
+                            .then(function (data) { if (data) renderWorkerV(data); })
+                            .catch(function () {});
+                    }
+
+                    if (workerBtnV) {
+                        workerBtnV.addEventListener('click', function () {
+                            if (workerErrV) {
+                                workerErrV.textContent = '';
+                                workerErrV.classList.add('hidden');
+                            }
+                            workerBtnV.disabled = true;
+                            fetch(workerStartUrlV, {
+                                method: 'POST',
+                                headers: {
+                                    'Accept': 'application/json',
+                                    'X-Requested-With': 'XMLHttpRequest',
+                                    'X-CSRF-TOKEN': csrf ? (csrf.getAttribute('content') || '') : ''
+                                },
+                                credentials: 'same-origin'
+                            })
+                            .then(function (r) { return r.json().catch(function () { return null; }); })
+                            .then(function (data) {
+                                if (!data || !data.ok) {
+                                    if (workerErrV) {
+                                        workerErrV.textContent = (data && data.message) ? data.message : 'No se pudo encender el worker media.';
+                                        workerErrV.classList.remove('hidden');
+                                    }
+                                    workerBtnV.disabled = false;
+                                    return;
+                                }
+                                renderWorkerV(data);
+                            })
+                            .catch(function () {
+                                if (workerErrV) {
+                                    workerErrV.textContent = 'No se pudo encender el worker media.';
+                                    workerErrV.classList.remove('hidden');
+                                }
+                                workerBtnV.disabled = false;
+                            });
+                        });
+                    }
+                    tickWorkerV();
+                    setInterval(tickWorkerV, 5000);
                 })();
             </script>
 
