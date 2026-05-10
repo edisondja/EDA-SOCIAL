@@ -216,6 +216,188 @@ class VideoPreviewGenerationService
         return ['status' => 'ok', 'detail' => 'poster'];
     }
 
+    /**
+     * Lote de portadas JPG para el panel: opción “solo faltantes” o todos los que tengan vídeo de origen,
+     * con instante de captura según duración (y variación por ID) o fijo (config).
+     *
+     * @return array{processed:int, skipped:int, failed:int, messages:string[]}
+     */
+    public function processPosterBatchForAdmin(int $limit, string $scope, bool $durationAwareSeek): array
+    {
+        $limit = max(1, min(200, $limit));
+        $scope = $scope === 'all' ? 'all' : 'missing';
+
+        $ffmpeg = $this->resolveFfmpegBinary();
+        if ($ffmpeg === null) {
+            return [
+                'processed' => 0,
+                'skipped' => 0,
+                'failed' => 0,
+                'messages' => ['No se encontró ffmpeg. Instalalo o definí FFMPEG_BINARY en .env.'],
+            ];
+        }
+
+        Storage::disk('public')->makeDirectory(self::PREVIEW_SUBDIR);
+
+        $query = Video::query()->with(['media'])->orderBy('id');
+        if ($scope === 'missing') {
+            $query->where(function ($w) {
+                $w->where(function ($a) {
+                    $a->whereNull('thumbnail_url')->orWhere('thumbnail_url', '');
+                })
+                    ->orWhere(function ($a) {
+                        foreach (['%.mp4%', '%.webm%', '%.mov%', '%.m4v%', '%.mkv%', '%.ts%'] as $like) {
+                            $a->orWhere('thumbnail_url', 'like', $like);
+                        }
+                    });
+            });
+        }
+
+        $processed = 0;
+        $skipped = 0;
+        $failed = 0;
+        $messages = [];
+
+        foreach ($query->limit($limit)->get() as $video) {
+            $force = $scope === 'all';
+            $r = $this->generatePosterJpeg($video, $ffmpeg, $force, $durationAwareSeek);
+            if ($r['status'] === 'ok') {
+                $processed++;
+                $messages[] = "Vídeo #{$video->id}: {$r['detail']}";
+            } elseif ($r['status'] === 'skip') {
+                $skipped++;
+                $messages[] = "Vídeo #{$video->id}: {$r['detail']}";
+            } else {
+                $failed++;
+                $messages[] = "Vídeo #{$video->id}: {$r['detail']}";
+            }
+        }
+
+        return compact('processed', 'skipped', 'failed', 'messages');
+    }
+
+    /**
+     * Genera o sobrescribe solo el poster JPG.
+     *
+     * @return array{status:string,detail:string}
+     */
+    public function generatePosterJpeg(Video $video, ?string $ffmpegBinary, bool $forceReplace, bool $durationAwareSeek): array
+    {
+        $ffmpegBinary = $ffmpegBinary ?? $this->resolveFfmpegBinary();
+        if ($ffmpegBinary === null) {
+            return ['status' => 'fail', 'detail' => 'ffmpeg no disponible'];
+        }
+
+        $video->loadMissing('media');
+        if (!$forceReplace && !$video->needsPosterImageGeneration()) {
+            return ['status' => 'skip', 'detail' => 'Ya tiene miniatura'];
+        }
+
+        $sourceUrl = $this->primaryVideoSourceUrl($video);
+        if ($sourceUrl === null) {
+            return ['status' => 'skip', 'detail' => 'Sin URL de vídeo local o en medios'];
+        }
+
+        $input = $this->resolveFfmpegInput($sourceUrl);
+        if ($input === null) {
+            return ['status' => 'skip', 'detail' => 'No se pudo resolver el archivo de origen'];
+        }
+
+        $seek = $durationAwareSeek
+            ? $this->posterSeekSecondsForVideo($video, $ffmpegBinary, $input)
+            : max(0.0, min(600.0, (float) config('ffmpeg.poster_seek_seconds', 1)));
+
+        $disk = Storage::disk('public');
+        $posterRel = self::PREVIEW_SUBDIR.'/'.$video->id.'_poster.jpg';
+        $posterPath = $disk->path($posterRel);
+
+        $cmd = sprintf(
+            '%s -y -hide_banner -loglevel error -ss %s -i %s -frames:v 1 -q:v 3 %s',
+            escapeshellarg($ffmpegBinary),
+            escapeshellarg((string) $seek),
+            escapeshellarg($input),
+            escapeshellarg($posterPath)
+        );
+        $code = $this->runShell($cmd);
+        if ($code !== 0 || !is_readable($posterPath) || filesize($posterPath) < 32) {
+            @unlink($posterPath);
+
+            return ['status' => 'fail', 'detail' => 'Error al generar poster (ffmpeg código '.$code.', seek '.$seek.'s)'];
+        }
+
+        $video->thumbnail_url = $disk->url($posterRel);
+        $video->save();
+
+        $detail = 'poster @ '.$seek.'s'.($durationAwareSeek ? ' (duración/ID)' : ' (fijo)');
+
+        return ['status' => 'ok', 'detail' => $detail];
+    }
+
+    /**
+     * Instantánea entre ~6% y ~32% de la duración, con variación por ID del vídeo.
+     */
+    public function posterSeekSecondsForVideo(Video $video, ?string $ffmpegBinary, string $input): float
+    {
+        $duration = (float) $video->duration_seconds;
+        if ($duration <= 0 && $ffmpegBinary !== null) {
+            $probed = $this->probeInputDurationSeconds($input);
+            if ($probed !== null && $probed > 0) {
+                $duration = $probed;
+            }
+        }
+
+        $fallback = max(0.0, min(600.0, (float) config('ffmpeg.poster_seek_seconds', 1)));
+        if ($duration < 0.5) {
+            return $fallback;
+        }
+
+        $spread = 0.06 + (($video->id % 27) * 0.01);
+        $seek = $duration * $spread;
+
+        return round(max(0.25, min($seek, $duration - 0.2)), 2);
+    }
+
+    public function resolveFfprobeBinary(): ?string
+    {
+        $cfg = trim((string) config('ffmpeg.ffprobe', 'ffprobe'));
+        if ($cfg !== '' && $cfg !== 'ffprobe' && is_executable($cfg)) {
+            return $cfg;
+        }
+        if ($cfg === 'ffprobe' || $cfg === '') {
+            $which = trim((string) shell_exec('command -v ffprobe 2>/dev/null'));
+            if ($which !== '' && is_executable($which)) {
+                return $which;
+            }
+        }
+
+        return null;
+    }
+
+    private function probeInputDurationSeconds(string $input): ?float
+    {
+        $probe = $this->resolveFfprobeBinary();
+        if ($probe === null) {
+            return null;
+        }
+
+        $cmd = sprintf(
+            '%s -v error -show_entries format=duration -of default=nw=1:nk=1 -i %s 2>/dev/null',
+            escapeshellarg($probe),
+            escapeshellarg($input)
+        );
+        $raw = shell_exec($cmd);
+        if (!is_string($raw)) {
+            return null;
+        }
+        $raw = trim($raw);
+        if ($raw === '' || !is_numeric($raw)) {
+            return null;
+        }
+        $v = (float) $raw;
+
+        return $v > 0 ? $v : null;
+    }
+
     public function resolveFfmpegBinary(): ?string
     {
         $cfg = trim((string) config('ffmpeg.binary', 'ffmpeg'));

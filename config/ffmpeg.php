@@ -8,6 +8,11 @@ return [
     'binary' => env('FFMPEG_BINARY', 'ffmpeg'),
 
     /*
+    | ffprobe (misma familia que ffmpeg) para leer duración si duration_seconds = 0.
+    */
+    'ffprobe' => env('FFPROBE_BINARY', 'ffprobe'),
+
+    /*
     | Segundo del vídeo donde capturar el poster (miniatura).
     */
     'poster_seek_seconds' => (float) env('FFMPEG_POSTER_SEEK', 1),

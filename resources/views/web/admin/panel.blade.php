@@ -95,6 +95,7 @@
                 <input id="admin_site_kw" type="text" name="site_keywords" value="{{ old('site_keywords', $s('site_keywords')) }}" maxlength="500">
                 <label class="field-label label-with-icon" for="admin_public_url">@include('web.partials.form-icon', ['name' => 'link']) URL pública del sitio</label>
                 <input id="admin_public_url" type="text" name="public_site_url" value="{{ old('public_site_url', $s('public_site_url')) }}" placeholder="https://…" maxlength="255">
+                <p class="hint-text" style="margin-top:6px;">Google y los navegadores penalizan <strong>contenido mixto</strong> (página en HTTPS con recursos en HTTP). En <strong>producción</strong> (<code>APP_ENV=production</code>) usá <code>APP_URL=https://…</code> y <strong>https://</strong> en «URL pública»; con <code>TRUSTED_PROXIES=*</code> si hay Nginx/Cloudflare. En local/staging no se fuerza HTTPS salvo <code>FORCE_HTTPS=true</code> en <code>.env</code>.</p>
                 <label class="checkbox-with-icon">
                     @include('web.partials.form-icon', ['name' => 'arrow-path', 'size' => 16])
                     <span class="checkbox-with-icon-body checkbox-row" style="margin:0;"><input type="checkbox" name="use_router_links" {{ old('use_router_links', $s('use_router_links','1')) === '1' ? 'checked' : '' }}> Enlaces SPA (React Router) en el feed</span>
@@ -571,6 +572,19 @@ sudo systemctl enable --now rabbitmq-server</pre>
                     <pre class="admin-json-preview" style="margin:0;font-size:11px;white-space:pre-wrap;">sudo rabbitmq-plugins enable rabbitmq_management</pre>
                     <p class="hint-text" style="margin:4px 0 0;">Por defecto: <code>http://IP-DEL-SERVIDOR:15672</code> — usuario <code>guest</code> solo funciona desde localhost.</p>
 
+                    <p class="font-semibold text-slate-900" style="margin:10px 0 4px;">Si falla con <code>Error: :plugins_dir_does_not_exist</code> (Ubuntu 24.04+ / 25)</p>
+                    <p class="hint-text" style="margin:0 0 6px;">El CLI no encuentra la carpeta de plugins. Averiguá la ruta real (cambiá el glob por lo que exista en tu servidor):</p>
+                    <pre class="admin-json-preview" style="margin:0;font-size:11px;white-space:pre-wrap;">ls /usr/lib/rabbitmq/lib/
+ls /usr/lib/rabbitmq/lib/rabbitmq_server-*/plugins | head</pre>
+                    <p class="hint-text" style="margin:6px 0 6px;">Creá el directorio fijo para plugins extra (a veces falta en paquetes recientes) y en <code>/etc/rabbitmq/rabbitmq-env.conf</code> definí <code>PLUGINS_DIR</code> (sin prefijo <code>RABBITMQ_</code>) con <strong>dos rutas</strong> separadas por <code>:</code>:</p>
+                    <pre class="admin-json-preview" style="margin:0;font-size:11px;white-space:pre-wrap;">sudo mkdir -p /usr/lib/rabbitmq/plugins
+sudo chown rabbitmq:rabbitmq /usr/lib/rabbitmq/plugins
+# sudo nano /etc/rabbitmq/rabbitmq-env.conf  —  una línea (ajustá la carpeta rabbitmq_server-* real):
+# PLUGINS_DIR=/usr/lib/rabbitmq/plugins:/usr/lib/rabbitmq/lib/rabbitmq_server-4.0.5/plugins
+sudo systemctl restart rabbitmq-server
+sudo rabbitmq-plugins enable rabbitmq_management</pre>
+                    <p class="hint-text" style="margin:6px 0 0;">Si <code>rabbitmq_server-*</code> no existe, el paquete está incompleto: probá <code>sudo apt install --reinstall rabbitmq-server</code> o los paquetes oficiales de <a href="https://www.rabbitmq.com/docs/install-debian" target="_blank" rel="noopener noreferrer">rabbitmq.com/docs/install-debian</a>, o Docker <code>rabbitmq:3-management</code>.</p>
+
                     <p class="font-semibold text-slate-900" style="margin:10px 0 4px;">3) Virtual host dedicado (opcional, recomendado)</p>
                     <pre class="admin-json-preview" style="margin:0;font-size:11px;white-space:pre-wrap;">sudo rabbitmqctl add_vhost eda_social</pre>
 
@@ -833,6 +847,37 @@ RABBITMQ_ADMIN_QUEUE_NAMES=media,default</pre>
                     <button type="submit" class="btn-primary">Generar con ffmpeg</button>
                 </form>
                 <p class="hint-text" style="margin:10px 0 0;">CLI: solo portadas JPG — <code style="font-size:11px;">php artisan videos:generate-posters --limit=40</code> · poster + clip hover — <code style="font-size:11px;">php artisan videos:generate-previews --limit=30</code></p>
+            </section>
+
+            <section class="aspecto-card" style="margin:18px 0;padding:14px;border:1px solid #e2e8f0;border-radius:12px;background:#f8fafc;">
+                <div class="aspecto-card-title" style="margin-bottom:8px;">Portadas en lote (solo JPG, instante según duración)</div>
+                <p class="hint-text" style="margin:0 0 12px;">Recorre hasta N vídeos y asigna una <strong>imagen de portada</strong> con ffmpeg. El segundo de captura depende de la <strong>duración</strong> y del <strong>ID</strong> (entre ~6% y ~32% del vídeo) para que las miniaturas no salgan todas iguales. Si <code>duration_seconds</code> es 0, se intenta leer la duración con <code>ffprobe</code>. Opción «Todas» sobrescribe portadas existentes.</p>
+                <form method="post" action="{{ route('admin.video_posters_batch') }}" style="display:flex;flex-direction:column;gap:12px;max-width:42rem;">
+                    @csrf
+                    <input type="hidden" name="_section" value="videos">
+                    <div style="display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end;">
+                        <div>
+                            <label class="field-label" for="poster_limit">Máximo de vídeos por ejecución</label>
+                            <select id="poster_limit" name="poster_limit">
+                                @foreach([20 => '20', 40 => '40', 60 => '60', 100 => '100', 150 => '150', 200 => '200'] as $val => $lab)
+                                    <option value="{{ $val }}" {{ (int) old('poster_limit', 40) === (int) $val ? 'selected' : '' }}>{{ $lab }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <span class="field-label" style="display:block;margin-bottom:4px;">Ámbito</span>
+                            <label class="checkbox-with-icon" style="margin:0;display:block;"><span class="checkbox-with-icon-body checkbox-row" style="margin:0;"><input type="radio" name="poster_scope" value="missing" {{ old('poster_scope', 'missing') === 'missing' ? 'checked' : '' }}> Solo sin portada válida (recomendado)</span></label>
+                            <label class="checkbox-with-icon" style="margin:0;display:block;margin-top:6px;"><span class="checkbox-with-icon-body checkbox-row" style="margin:0;"><input type="radio" name="poster_scope" value="all" {{ old('poster_scope') === 'all' ? 'checked' : '' }}> Todas (regenerar y sobrescribir)</span></label>
+                        </div>
+                        <div>
+                            <span class="field-label" style="display:block;margin-bottom:4px;">Instante de captura</span>
+                            <label class="checkbox-with-icon" style="margin:0;display:block;"><span class="checkbox-with-icon-body checkbox-row" style="margin:0;"><input type="radio" name="poster_duration_aware" value="1" {{ old('poster_duration_aware', '1') === '1' ? 'checked' : '' }}> Según duración del vídeo + variación por ID</span></label>
+                            <label class="checkbox-with-icon" style="margin:0;display:block;margin-top:6px;"><span class="checkbox-with-icon-body checkbox-row" style="margin:0;"><input type="radio" name="poster_duration_aware" value="0" {{ old('poster_duration_aware') === '0' ? 'checked' : '' }}> Fijo (<code>FFMPEG_POSTER_SEEK</code> en .env)</span></label>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn-primary label-with-icon">@include('web.partials.form-icon', ['name' => 'photo', 'size' => 16]) Generar portadas en lote</button>
+                </form>
+                <p class="hint-text" style="margin:10px 0 0;">CLI equivalente: <code style="font-size:11px;">php artisan videos:generate-posters --limit=100 --scope=missing --duration-aware</code> (o <code>--scope=all</code>, <code>--fixed-seek</code>).</p>
             </section>
 
             <table class="admin-users-table admin-videos-table" style="width:100%;table-layout:fixed;">

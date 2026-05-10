@@ -7,16 +7,27 @@ use Illuminate\Console\Command;
 
 class GenerateVideoPostersCommand extends Command
 {
-    protected $signature = 'videos:generate-posters {--limit=40 : Máximo de portadas JPEG a generar por ejecución}';
+    protected $signature = 'videos:generate-posters
+                            {--limit=40 : Máximo de vídeos a procesar por ejecución}
+                            {--scope=missing : missing = solo sin portada válida; all = todos (sobrescribe)}
+                            {--fixed-seek : Usar segundo fijo (FFMPEG_POSTER_SEEK) en vez de duración+ID}';
 
-    protected $description = 'Genera solo portadas JPEG (ffmpeg) para vídeos sin miniatura o con miniatura que es un archivo de vídeo';
+    protected $description = 'Genera portadas JPEG con ffmpeg (instante según duración por defecto, o fijo con --fixed-seek)';
 
     public function handle(VideoPreviewGenerationService $service): int
     {
         $limit = (int) $this->option('limit');
-        $this->info('Generando hasta '.$limit.' portadas (solo JPG)…');
+        $scope = strtolower((string) $this->option('scope')) === 'all' ? 'all' : 'missing';
+        $durationAware = !$this->option('fixed-seek');
 
-        $result = $service->processMissingPostersBatch($limit);
+        $this->info(sprintf(
+            'Portadas JPG · límite %d · ámbito %s · seek %s…',
+            $limit,
+            $scope === 'all' ? 'todas' : 'solo faltantes',
+            $durationAware ? 'duración+ID' : 'fijo'
+        ));
+
+        $result = $service->processPosterBatchForAdmin($limit, $scope, $durationAware);
 
         $this->line('Creadas: '.$result['processed'].' · Omitidas: '.$result['skipped'].' · Fallidas: '.$result['failed']);
 

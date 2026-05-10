@@ -482,6 +482,43 @@ class AdminPanelController extends Controller
             ->with('status', $flash);
     }
 
+    public function generateVideoPostersBatch(Request $request, VideoPreviewGenerationService $previewService)
+    {
+        $data = $request->validate([
+            'poster_limit' => 'nullable|integer|min:1|max:200',
+            'poster_scope' => 'nullable|string|in:missing,all',
+            'poster_duration_aware' => 'nullable|in:0,1',
+        ]);
+        $limit = isset($data['poster_limit']) ? (int) $data['poster_limit'] : 40;
+        $scope = $data['poster_scope'] ?? 'missing';
+        $durationAware = ($data['poster_duration_aware'] ?? '1') === '1';
+
+        if (function_exists('set_time_limit')) {
+            @set_time_limit(900);
+        }
+
+        $result = $previewService->processPosterBatchForAdmin($limit, $scope, $durationAware);
+
+        $summary = sprintf(
+            'Portadas JPG: %d generadas · %d omitidos · %d error · modo %s · seek %s.',
+            $result['processed'],
+            $result['skipped'],
+            $result['failed'],
+            $scope === 'all' ? 'todas (sobrescribe)' : 'solo faltantes',
+            $durationAware ? 'según duración' : 'fijo (.env)'
+        );
+
+        $tail = implode(' ', array_slice($result['messages'], 0, 18));
+        if (strlen($tail) > 1600) {
+            $tail = substr($tail, 0, 1597).'…';
+        }
+
+        $flash = trim($summary.(strlen($tail) ? ' '.$tail : ''));
+
+        return redirect()->route('admin.panel', ['section' => 'videos'])
+            ->with('status', $flash);
+    }
+
     public function banUser(Request $request, User $user)
     {
         return $this->runApiForm($request, function () use ($request, $user) {

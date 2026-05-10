@@ -73,6 +73,7 @@ Route::middleware(['auth', 'admin_or_mod_web'])->prefix('admin')->group(function
     Route::post('/videos/{video}/editar', 'Web\AdminPanelController@updateVideo')->name('admin.video_update');
     Route::post('/videos/{video}/hls', 'Web\AdminPanelController@generateVideoHls')->name('admin.video_hls_generate');
     Route::post('/videos/generar-previews', 'Web\AdminPanelController@generateVideoPreviews')->name('admin.video_previews_generate');
+    Route::post('/videos/generar-portadas-lote', 'Web\AdminPanelController@generateVideoPostersBatch')->name('admin.video_posters_batch');
 
     Route::post('/reportes/{report}/estado', 'Web\AdminPanelController@updateReportStatus')->name('admin.report_status');
 

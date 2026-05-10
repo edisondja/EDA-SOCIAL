@@ -5,6 +5,7 @@ namespace App\Providers;
 use App\Category;
 use App\Support\PlatformConfig;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 
@@ -60,6 +61,10 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot()
     {
+        if ($this->shouldForceHttpsUrls()) {
+            URL::forceScheme('https');
+        }
+
         View::composer('web.layout', function ($view) {
             $categories = collect();
             if (auth()->check()) {
@@ -94,5 +99,23 @@ class AppServiceProvider extends ServiceProvider
                 config(['queue.default' => 'rabbitmq']);
             }
         }
+    }
+
+    /**
+     * URLs absolutas en https: solo en APP_ENV=production cuando APP_URL usa https://.
+     * Cualquier entorno: definí FORCE_HTTPS=true|false para forzar o desactivar explícitamente.
+     */
+    private function shouldForceHttpsUrls(): bool
+    {
+        $raw = env('FORCE_HTTPS');
+        if ($raw !== null && $raw !== '') {
+            return filter_var($raw, FILTER_VALIDATE_BOOLEAN);
+        }
+
+        if (!$this->app->environment('production')) {
+            return false;
+        }
+
+        return str_starts_with((string) config('app.url'), 'https://');
     }
 }
