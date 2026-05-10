@@ -970,26 +970,35 @@ RABBITMQ_ADMIN_QUEUE_NAMES=media,default</pre>
                             body: fd,
                             credentials: 'same-origin'
                         })
-                        .then(function (r) { return r.json().catch(function () { return null; }); })
+                        .then(function (r) {
+                            return r.json().catch(function () { return null; }).then(function (data) {
+                                return { okHttp: r.ok, status: r.status, data: data };
+                            });
+                        })
                         .then(function (data) {
-                            if (!data || !data.ok) {
-                                throw new Error('enqueue-failed');
+                            var payload = data && data.data ? data.data : null;
+                            if (!payload || !payload.ok) {
+                                var msg = payload && payload.message ? String(payload.message) : 'No se pudo iniciar la cola de portadas.';
+                                if (data && !data.okHttp && data.status) {
+                                    msg += ' (HTTP ' + data.status + ')';
+                                }
+                                throw new Error(msg);
                             }
-                            if (!data.batch_id || !data.total) {
+                            if (!payload.batch_id || !payload.total) {
                                 setProgress(100);
-                                if (text) text.textContent = (data.message || 'No hay vídeos pendientes.');
+                                if (text) text.textContent = (payload.message || 'No hay vídeos pendientes.');
                                 if (btn) btn.disabled = false;
                                 return;
                             }
-                            batchId = String(data.batch_id);
+                            batchId = String(payload.batch_id);
                             setProgress(7);
                             if (text) text.textContent = 'Cola iniciada. Procesando…';
                             stopPolling();
                             timer = setInterval(poll, 1200);
                             poll();
                         })
-                        .catch(function () {
-                            if (text) text.textContent = 'No se pudo iniciar la cola de portadas.';
+                        .catch(function (err) {
+                            if (text) text.textContent = err && err.message ? err.message : 'No se pudo iniciar la cola de portadas.';
                             if (btn) btn.disabled = false;
                             stopPolling();
                         });
