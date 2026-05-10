@@ -57,6 +57,14 @@ class AppServiceProvider extends ServiceProvider
         $config = $this->app->make('config');
         $existing = $config->get('queue.connections.rabbitmq');
         if (is_array($existing) && ($existing['driver'] ?? null) === 'rabbitmq') {
+            /* Config cacheado antiguo: asegurar claves management_* para evitar errores al leer con config(). */
+            $config->set('queue.connections.rabbitmq', array_replace([
+                'management_url' => null,
+                'management_port' => 15672,
+                'management_user' => null,
+                'management_password' => null,
+            ], $existing));
+
             return;
         }
 
@@ -110,9 +118,10 @@ class AppServiceProvider extends ServiceProvider
             return;
         }
 
+        $redisHost = trim((string) config('database.redis.default.host', ''));
         if (PlatformConfig::get('feature_redis_cache') === '1'
             && (extension_loaded('redis') || extension_loaded('Redis'))
-            && env('REDIS_HOST')
+            && $redisHost !== ''
         ) {
             config(['cache.default' => 'redis']);
         }

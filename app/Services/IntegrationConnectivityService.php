@@ -110,8 +110,11 @@ class IntegrationConnectivityService
             $mgmtBase = 'http://'.$host.':'.(int) ($rabbit['management_port'] ?? 15672);
         }
 
-        $mgmtUser = (string) ($rabbit['management_user'] ?: $amqpUser);
-        $mgmtPass = (string) ($rabbit['management_password'] ?: $amqpPass);
+        /* Evita "Undefined array key" con config cacheado viejo; credenciales vacías = mismas que AMQP. */
+        $mgmtUserRaw = trim((string) ($rabbit['management_user'] ?? ''));
+        $mgmtUser = $mgmtUserRaw !== '' ? $mgmtUserRaw : $amqpUser;
+        $mgmtPassRaw = (string) ($rabbit['management_password'] ?? '');
+        $mgmtPass = $mgmtPassRaw !== '' ? $mgmtPassRaw : $amqpPass;
 
         $mgmtOk = null;
         $mgmtDetail = '';
