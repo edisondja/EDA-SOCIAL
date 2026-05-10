@@ -304,16 +304,12 @@ class PlatformSettingController extends Controller
             ->where('is_published', true)
             ->where('moderation_status', 'active')
             ->count();
-        $chunkFiles = $published === 0
-            ? 0
-            : (int) ceil($published / SitemapController::POSTS_PER_SITEMAP);
 
         return response()->json([
             'ok' => true,
-            'path' => 'public/sitemap.xml + public/sitemap-posts-*.xml',
+            'path' => 'public/sitemap.xml',
             'public_url' => $url,
             'post_urls' => $published,
-            'chunk_files' => $chunkFiles,
         ]);
     }
 

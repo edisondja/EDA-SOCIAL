@@ -100,7 +100,7 @@
                     @include('web.partials.form-icon', ['name' => 'arrow-path', 'size' => 16])
                     <span class="checkbox-with-icon-body checkbox-row" style="margin:0;"><input type="checkbox" name="use_router_links" {{ old('use_router_links', $s('use_router_links','1')) === '1' ? 'checked' : '' }}> Enlaces SPA (React Router) en el feed</span>
                 </label>
-                <p class="hint-text" style="margin-top:6px;">El sitemap <strong>solo incluye publicaciones</strong> activas y publicadas, en archivos de <strong>20 URLs</strong> (<code>/sitemap-posts-1.xml</code>, etc.) enlazados desde <code>/sitemap.xml</code>. Se <strong>regenera solo</strong> al crear o editar un post, importar, moderar vídeo o al pulsar «Generar» abajo.</p>
+                <p class="hint-text" style="margin-top:6px;">Un solo <code>sitemap.xml</code> con <strong>todas</strong> las fichas públicas (<code>/playvideo/{id}/{slug}</code>), solo publicaciones activas y publicadas. Las rutas viejas <code>/sitemap-posts-N.xml</code> redirigen al sitemap único. Se <strong>regenera solo</strong> al crear o editar un post, importar, moderar vídeo o al pulsar «Generar» abajo.</p>
                 <label class="field-label label-with-icon" for="admin_ga_measurement_id">@include('web.partials.form-icon', ['name' => 'chart-bar']) Google Analytics — ID de medición</label>
                 <input id="admin_ga_measurement_id" type="text" name="google_analytics_measurement_id" value="{{ old('google_analytics_measurement_id', $s('google_analytics_measurement_id')) }}" maxlength="40" placeholder="G-XXXXXXXXXX o UA-XXXXXXX-X" autocomplete="off" autocapitalize="characters">
                 <p class="hint-text" style="margin-top:6px;">Opcional. Pegá el ID de la propiedad GA4 (<strong>G-…</strong>) o Universal Analytics (<strong>UA-…</strong>). Dejalo vacío para no cargar el script en el sitio público.</p>
@@ -113,7 +113,7 @@
                     <button type="button" class="btn-secondary label-with-icon" id="admin_seo_copy_sitemap_btn">@include('web.partials.form-icon', ['name' => 'link']) Copiar enlace</button>
                     <a href="https://search.google.com/search-console" target="_blank" rel="noopener noreferrer" class="btn-primary label-with-icon">@include('web.partials.form-icon', ['name' => 'link']) Enviar a Google</a>
                 </div>
-                <p class="hint-text" style="margin-top:8px;">URLs de posts en el sitemap: <strong>{{ number_format((int) ($seoSitemapLinksCount ?? 0), 0, ',', '.') }}</strong> (más el índice <code>sitemap.xml</code> y un archivo por cada 20 posts).</p>
+                <p class="hint-text" style="margin-top:8px;">URLs de vídeos en <code>sitemap.xml</code>: <strong>{{ number_format((int) ($seoSitemapLinksCount ?? 0), 0, ',', '.') }}</strong></p>
                 <form id="admin_seo_generate_sitemap_form" style="margin-top:10px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;">
                     @csrf
                     <button type="submit" class="btn-secondary label-with-icon" id="admin_seo_generate_sitemap_btn">@include('web.partials.form-icon', ['name' => 'arrow-path']) Generar sitemap en /public ahora</button>

@@ -106,5 +106,5 @@ Route::middleware(['auth', 'admin_or_mod_web'])->prefix('admin')->group(function
 Route::get('/sitemap.xml', 'SitemapController@showIndex')->name('sitemap.index');
 Route::get('/sitemap-posts-{page}.xml', 'SitemapController@showPostsChunk')
     ->whereNumber('page')
-    ->name('sitemap.posts');
+    ->name('sitemap.posts'); // 301 → /sitemap.xml (sitemap único)
 Route::get('/robots.txt', 'RobotsController@show');
