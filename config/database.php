@@ -143,7 +143,11 @@ return [
 
     'redis' => [
 
-        'client' => env('REDIS_CLIENT', 'phpredis'),
+        /*
+         * phpredis = extensión C (rápida). Si no está instalada y usás CACHE_DRIVER=redis,
+         * dejá REDIS_CLIENT vacío o poné predis (requiere predis/predis en composer).
+         */
+        'client' => env('REDIS_CLIENT') ?: (extension_loaded('redis') ? 'phpredis' : 'predis'),
 
         'options' => [
             'cluster' => env('REDIS_CLUSTER', 'redis'),

@@ -584,7 +584,9 @@ sudo systemctl enable --now redis-server
 redis-cli ping</pre>
                     <p class="hint-text" style="margin:4px 0 0;">La última línea debe responder <code>PONG</code>. El servicio escucha por defecto en <code>127.0.0.1:6379</code>.</p>
 
-                    <p class="font-semibold text-slate-900" style="margin:10px 0 4px;">2) Extensión PHP <code>phpredis</code> (requerida para <code>REDIS_CLIENT=phpredis</code>)</p>
+                    <p class="font-semibold text-slate-900" style="margin:10px 0 4px;">2) Cliente PHP ↔ Redis</p>
+                    <p class="hint-text" style="margin:4px 0 6px;"><strong>Opción A — Predis (sin extensión):</strong> el proyecto ya incluye <code>predis/predis</code>. En <code>.env</code> usá <code>REDIS_CLIENT=predis</code> o dejá <code>REDIS_CLIENT</code> vacío si no tenés la extensión (Laravel elegirá Predis solo).</p>
+                    <p class="hint-text" style="margin:0 0 6px;"><strong>Opción B — phpredis</strong> (más rápido en producción, requiere extensión):</p>
                     <pre class="admin-json-preview" style="margin:0;font-size:11px;white-space:pre-wrap;"># Sustituí 8.4 por tu versión de PHP (php -v)
 sudo apt install -y php8.4-redis
 sudo systemctl reload php8.4-fpm   # o apache2, según tu stack
@@ -593,7 +595,8 @@ php -m | grep -i redis</pre>
 
                     <p class="font-semibold text-slate-900" style="margin:10px 0 4px;">3) Variables en <code>.env</code> del backend</p>
                     <pre class="admin-json-preview" style="margin:0;font-size:11px;white-space:pre-wrap;">CACHE_DRIVER=redis
-REDIS_CLIENT=phpredis
+REDIS_CLIENT=predis
+# o REDIS_CLIENT=phpredis si instalaste la extensión
 REDIS_HOST=127.0.0.1
 REDIS_PASSWORD=null
 REDIS_PORT=6379
