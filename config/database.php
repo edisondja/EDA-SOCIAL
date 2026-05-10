@@ -150,7 +150,8 @@ return [
         'client' => match (strtolower(trim((string) env('REDIS_CLIENT', '')))) {
             'predis' => 'predis',
             'phpredis' => extension_loaded('redis') ? 'phpredis' : 'predis',
-            default => extension_loaded('redis') ? 'phpredis' : 'predis',
+            // Por defecto predis (sin extensión C); en producción con extensión: REDIS_CLIENT=phpredis
+            default => 'predis',
         },
 
         'options' => [

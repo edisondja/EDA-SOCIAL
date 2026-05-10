@@ -18,7 +18,31 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register()
     {
+        $this->ensureRedisClientDoesNotRequireMissingExtension();
         $this->ensureRabbitMqQueueConnectionConfigured();
+    }
+
+    /**
+     * Sin extensión phpredis, Laravel igual puede usar Redis vía predis/predis.
+     * Corrige config cacheada o REDIS_CLIENT=phpredis cuando la extensión no está cargada
+     * (evita LogicException al instanciar PhpRedisConnector).
+     */
+    private function ensureRedisClientDoesNotRequireMissingExtension(): void
+    {
+        if (!$this->app->bound('config')) {
+            return;
+        }
+
+        $this->app->booting(function () {
+            if (! $this->app->bound('config')) {
+                return;
+            }
+            $config = $this->app->make('config');
+            $client = $config->get('database.redis.client', 'predis');
+            if ($client === 'phpredis' && ! extension_loaded('redis')) {
+                $config->set('database.redis.client', 'predis');
+            }
+        });
     }
 
     /**
