@@ -850,35 +850,152 @@ RABBITMQ_ADMIN_QUEUE_NAMES=media,default</pre>
             </section>
 
             <section class="aspecto-card" style="margin:18px 0;padding:14px;border:1px solid #e2e8f0;border-radius:12px;background:#f8fafc;">
-                <div class="aspecto-card-title" style="margin-bottom:8px;">Portadas en lote (solo JPG, instante según duración)</div>
-                <p class="hint-text" style="margin:0 0 12px;">Recorre hasta N vídeos y asigna una <strong>imagen de portada</strong> con ffmpeg. El segundo de captura depende de la <strong>duración</strong> y del <strong>ID</strong> (entre ~6% y ~32% del vídeo) para que las miniaturas no salgan todas iguales. Si <code>duration_seconds</code> es 0, se intenta leer la duración con <code>ffprobe</code>. Opción «Todas» sobrescribe portadas existentes.</p>
-                <form method="post" action="{{ route('admin.video_posters_batch') }}" style="display:flex;flex-direction:column;gap:12px;max-width:42rem;">
+                <div class="aspecto-card-title" style="margin-bottom:8px;">Portadas en cola (RabbitMQ) + progreso</div>
+                <p class="hint-text" style="margin:0 0 12px;">Encola <strong>un job por vídeo</strong> para generar portada JPG si falta. Al terminar cada uno se marca <strong>OK</strong> y se actualiza esta barra de progreso.</p>
+                <form id="admin_poster_enqueue_form" style="display:flex;flex-direction:column;gap:12px;max-width:42rem;">
                     @csrf
-                    <input type="hidden" name="_section" value="videos">
                     <div style="display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end;">
                         <div>
-                            <label class="field-label" for="poster_limit">Máximo de vídeos por ejecución</label>
-                            <select id="poster_limit" name="poster_limit">
-                                @foreach([20 => '20', 40 => '40', 60 => '60', 100 => '100', 150 => '150', 200 => '200'] as $val => $lab)
-                                    <option value="{{ $val }}" {{ (int) old('poster_limit', 40) === (int) $val ? 'selected' : '' }}>{{ $lab }}</option>
+                            <label class="field-label" for="poster_queue_limit">Máximo de vídeos por ejecución</label>
+                            <select id="poster_queue_limit" name="limit">
+                                @foreach([20 => '20', 40 => '40', 60 => '60', 100 => '100', 150 => '150', 200 => '200', 300 => '300'] as $val => $lab)
+                                    <option value="{{ $val }}" {{ (int) old('poster_limit', 120) === (int) $val ? 'selected' : '' }}>{{ $lab }}</option>
                                 @endforeach
                             </select>
                         </div>
                         <div>
                             <span class="field-label" style="display:block;margin-bottom:4px;">Ámbito</span>
-                            <label class="checkbox-with-icon" style="margin:0;display:block;"><span class="checkbox-with-icon-body checkbox-row" style="margin:0;"><input type="radio" name="poster_scope" value="missing" {{ old('poster_scope', 'missing') === 'missing' ? 'checked' : '' }}> Solo sin portada válida (recomendado)</span></label>
-                            <label class="checkbox-with-icon" style="margin:0;display:block;margin-top:6px;"><span class="checkbox-with-icon-body checkbox-row" style="margin:0;"><input type="radio" name="poster_scope" value="all" {{ old('poster_scope') === 'all' ? 'checked' : '' }}> Todas (regenerar y sobrescribir)</span></label>
+                            <label class="checkbox-with-icon" style="margin:0;display:block;"><span class="checkbox-with-icon-body checkbox-row" style="margin:0;"><input type="radio" name="scope" value="missing" checked> Solo sin portada válida</span></label>
+                            <label class="checkbox-with-icon" style="margin:0;display:block;margin-top:6px;"><span class="checkbox-with-icon-body checkbox-row" style="margin:0;"><input type="radio" name="scope" value="all"> Todas (sobrescribe)</span></label>
                         </div>
                         <div>
                             <span class="field-label" style="display:block;margin-bottom:4px;">Instante de captura</span>
-                            <label class="checkbox-with-icon" style="margin:0;display:block;"><span class="checkbox-with-icon-body checkbox-row" style="margin:0;"><input type="radio" name="poster_duration_aware" value="1" {{ old('poster_duration_aware', '1') === '1' ? 'checked' : '' }}> Según duración del vídeo + variación por ID</span></label>
-                            <label class="checkbox-with-icon" style="margin:0;display:block;margin-top:6px;"><span class="checkbox-with-icon-body checkbox-row" style="margin:0;"><input type="radio" name="poster_duration_aware" value="0" {{ old('poster_duration_aware') === '0' ? 'checked' : '' }}> Fijo (<code>FFMPEG_POSTER_SEEK</code> en .env)</span></label>
+                            <label class="checkbox-with-icon" style="margin:0;display:block;"><span class="checkbox-with-icon-body checkbox-row" style="margin:0;"><input type="radio" name="duration_aware" value="1" checked> Según duración + ID</span></label>
+                            <label class="checkbox-with-icon" style="margin:0;display:block;margin-top:6px;"><span class="checkbox-with-icon-body checkbox-row" style="margin:0;"><input type="radio" name="duration_aware" value="0"> Fijo (<code>FFMPEG_POSTER_SEEK</code>)</span></label>
                         </div>
                     </div>
-                    <button type="submit" class="btn-primary label-with-icon">@include('web.partials.form-icon', ['name' => 'photo', 'size' => 16]) Generar portadas en lote</button>
+                    <button type="submit" class="btn-primary label-with-icon" id="admin_poster_enqueue_btn">@include('web.partials.form-icon', ['name' => 'photo', 'size' => 16]) Encolar portadas faltantes</button>
                 </form>
-                <p class="hint-text" style="margin:10px 0 0;">CLI equivalente: <code style="font-size:11px;">php artisan videos:generate-posters --limit=100 --scope=missing --duration-aware</code> (o <code>--scope=all</code>, <code>--fixed-seek</code>).</p>
+                <div id="admin_poster_progress_wrap" style="display:none;margin-top:12px;">
+                    <div style="height:10px;border-radius:999px;background:#e2e8f0;overflow:hidden;">
+                        <div id="admin_poster_progress_bar" style="height:100%;width:0%;background:linear-gradient(90deg,var(--menu-color,#d83a7c),#16a34a);transition:width .3s;"></div>
+                    </div>
+                    <p id="admin_poster_progress_text" class="hint-text" style="margin-top:6px;">Procesando… 0%</p>
+                    <p id="admin_poster_progress_counts" class="hint-text" style="margin-top:4px;"></p>
+                    <div id="admin_poster_recent_ok" class="hint-text" style="margin-top:6px;max-height:130px;overflow:auto;background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:8px;"></div>
+                </div>
+                <p class="hint-text" style="margin:10px 0 0;">Necesita worker activo: <code style="font-size:11px;">php artisan queue:work rabbitmq --queue=media,default --tries=3 --timeout=1200</code></p>
             </section>
+            <script>
+                (function () {
+                    var form = document.getElementById('admin_poster_enqueue_form');
+                    if (!form) return;
+                    var btn = document.getElementById('admin_poster_enqueue_btn');
+                    var wrap = document.getElementById('admin_poster_progress_wrap');
+                    var bar = document.getElementById('admin_poster_progress_bar');
+                    var text = document.getElementById('admin_poster_progress_text');
+                    var counts = document.getElementById('admin_poster_progress_counts');
+                    var recent = document.getElementById('admin_poster_recent_ok');
+                    var csrf = document.querySelector('meta[name="csrf-token"]');
+                    var postUrl = @json(route('admin.video_posters_enqueue', [], false));
+                    var statusUrl = @json(route('admin.video_posters_status', [], false));
+                    var timer = null;
+                    var batchId = '';
+
+                    function esc(s) {
+                        var d = document.createElement('div');
+                        d.textContent = s == null ? '' : String(s);
+                        return d.innerHTML;
+                    }
+
+                    function stopPolling() {
+                        if (timer) {
+                            clearInterval(timer);
+                            timer = null;
+                        }
+                    }
+
+                    function setProgress(n) {
+                        var pct = Math.max(0, Math.min(100, parseInt(n, 10) || 0));
+                        if (bar) bar.style.width = pct + '%';
+                        if (text) text.textContent = 'Procesando portadas… ' + pct + '%';
+                    }
+
+                    function poll() {
+                        if (!batchId) return;
+                        fetch(statusUrl + '?batch_id=' + encodeURIComponent(batchId), {
+                            headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                            credentials: 'same-origin'
+                        })
+                        .then(function (r) { return r.ok ? r.json() : null; })
+                        .then(function (data) {
+                            if (!data || !data.ok) return;
+                            setProgress(data.progress || 0);
+                            var c = data.counts || {};
+                            if (counts) {
+                                counts.textContent = 'Total: ' + (c.total || 0) + ' · Hechos: ' + (c.done || 0) + ' · OK: ' + (c.ok || 0) + ' · Error: ' + (c.failed || 0);
+                            }
+                            if (recent) {
+                                var lines = data.recent || [];
+                                recent.innerHTML = lines.length
+                                    ? lines.map(function (line) { return '<div>• ' + esc(line) + '</div>'; }).join('')
+                                    : '<div>Esperando resultados…</div>';
+                            }
+                            if (data.done) {
+                                setProgress(100);
+                                if (text) text.textContent = 'Proceso completado.';
+                                if (btn) btn.disabled = false;
+                                stopPolling();
+                            }
+                        })
+                        .catch(function () {});
+                    }
+
+                    form.addEventListener('submit', function (e) {
+                        e.preventDefault();
+                        if (!csrf || !csrf.getAttribute('content')) return;
+                        if (btn) btn.disabled = true;
+                        if (wrap) wrap.style.display = 'block';
+                        setProgress(3);
+                        if (recent) recent.innerHTML = '<div>Encolando trabajos…</div>';
+                        if (counts) counts.textContent = '';
+
+                        var fd = new FormData(form);
+                        fd.append('_section', 'videos');
+                        fd.append('_token', csrf.getAttribute('content'));
+
+                        fetch(postUrl, {
+                            method: 'POST',
+                            headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                            body: fd,
+                            credentials: 'same-origin'
+                        })
+                        .then(function (r) { return r.json().catch(function () { return null; }); })
+                        .then(function (data) {
+                            if (!data || !data.ok) {
+                                throw new Error('enqueue-failed');
+                            }
+                            if (!data.batch_id || !data.total) {
+                                setProgress(100);
+                                if (text) text.textContent = (data.message || 'No hay vídeos pendientes.');
+                                if (btn) btn.disabled = false;
+                                return;
+                            }
+                            batchId = String(data.batch_id);
+                            setProgress(7);
+                            if (text) text.textContent = 'Cola iniciada. Procesando…';
+                            stopPolling();
+                            timer = setInterval(poll, 1200);
+                            poll();
+                        })
+                        .catch(function () {
+                            if (text) text.textContent = 'No se pudo iniciar la cola de portadas.';
+                            if (btn) btn.disabled = false;
+                            stopPolling();
+                        });
+                    });
+                })();
+            </script>
 
             <table class="admin-users-table admin-videos-table" style="width:100%;table-layout:fixed;">
                 <thead>

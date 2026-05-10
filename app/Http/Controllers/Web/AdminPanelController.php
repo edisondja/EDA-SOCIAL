@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\PlatformSettingController as ApiPlatform;
 use App\Http\Controllers\Api\RedditImportController as ApiReddit;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Web\Concerns\SharesBranding;
+use App\Jobs\GenerateVideoPosterProgressJob;
 use App\Jobs\GenerateVideoHlsJob;
 use App\Role;
 use App\Services\IntegrationConnectivityService;
@@ -519,6 +520,119 @@ class AdminPanelController extends Controller
             ->with('status', $flash);
     }
 
+    public function enqueueMissingPostersBatch(Request $request)
+    {
+        $data = $request->validate([
+            'limit' => 'nullable|integer|min:1|max:300',
+            'scope' => 'nullable|string|in:missing,all',
+            'duration_aware' => 'nullable|in:0,1',
+        ]);
+
+        $limit = isset($data['limit']) ? (int) $data['limit'] : 120;
+        $scope = ($data['scope'] ?? 'missing') === 'all' ? 'all' : 'missing';
+        $durationAware = ($data['duration_aware'] ?? '1') === '1';
+
+        $query = Video::query()->orderBy('id');
+        if ($scope === 'missing') {
+            $query->where(function ($w) {
+                $w->where(function ($a) {
+                    $a->whereNull('thumbnail_url')->orWhere('thumbnail_url', '');
+                })->orWhere(function ($a) {
+                    foreach (['%.mp4%', '%.webm%', '%.mov%', '%.m4v%', '%.mkv%', '%.ts%'] as $like) {
+                        $a->orWhere('thumbnail_url', 'like', $like);
+                    }
+                });
+            });
+        }
+
+        $videoIds = $query->limit($limit)->pluck('id')->map(function ($id) {
+            return (int) $id;
+        })->all();
+
+        if (count($videoIds) === 0) {
+            return response()->json([
+                'ok' => true,
+                'batch_id' => null,
+                'total' => 0,
+                'message' => 'No hay videos para procesar con ese filtro.',
+            ]);
+        }
+
+        $batchId = (string) \Illuminate\Support\Str::uuid();
+        $state = [
+            'batch_id' => $batchId,
+            'total' => count($videoIds),
+            'done' => 0,
+            'ok' => 0,
+            'failed' => 0,
+            'scope' => $scope,
+            'duration_aware' => $durationAware,
+            'status' => 'running',
+            'recent' => [],
+            'videos' => $videoIds,
+            'completed' => [],
+            'started_at' => now()->toDateTimeString(),
+            'finished_at' => null,
+        ];
+
+        $this->putPosterBatchState($batchId, $state);
+        $this->rememberPosterBatchId($request, $batchId);
+
+        foreach ($videoIds as $videoId) {
+            GenerateVideoPosterProgressJob::dispatch($videoId, $batchId, $scope === 'all', $durationAware);
+        }
+
+        return response()->json([
+            'ok' => true,
+            'batch_id' => $batchId,
+            'total' => count($videoIds),
+            'message' => 'Proceso encolado. Revisa la barra de progreso.',
+        ]);
+    }
+
+    public function missingPostersBatchStatus(Request $request)
+    {
+        $batchId = trim((string) $request->query('batch_id', ''));
+        if ($batchId === '') {
+            $batchId = $this->lastPosterBatchId($request);
+        }
+        if ($batchId === '') {
+            return response()->json([
+                'ok' => false,
+                'message' => 'Sin lote activo.',
+            ], 404);
+        }
+
+        $state = $this->posterBatchState($batchId);
+        if (!$state) {
+            return response()->json([
+                'ok' => false,
+                'message' => 'No se encontró ese lote.',
+            ], 404);
+        }
+
+        $total = max(0, (int) ($state['total'] ?? 0));
+        $done = max(0, (int) ($state['done'] ?? 0));
+        $progress = $total > 0 ? (int) floor(min(100, ($done * 100) / $total)) : 100;
+        $doneFlag = ($state['status'] ?? '') === 'done' || ($total > 0 && $done >= $total);
+
+        return response()->json([
+            'ok' => true,
+            'batch_id' => $batchId,
+            'progress' => $progress,
+            'done' => $doneFlag,
+            'counts' => [
+                'total' => $total,
+                'done' => $done,
+                'ok' => max(0, (int) ($state['ok'] ?? 0)),
+                'failed' => max(0, (int) ($state['failed'] ?? 0)),
+            ],
+            'recent' => array_slice((array) ($state['recent'] ?? []), -12),
+            'started_at' => $state['started_at'] ?? null,
+            'finished_at' => $state['finished_at'] ?? null,
+        ]);
+    }
+
     public function banUser(Request $request, User $user)
     {
         return $this->runApiForm($request, function () use ($request, $user) {
@@ -905,5 +1019,36 @@ class AdminPanelController extends Controller
         }
 
         return 'admin:sitemap:progress:session:' . $request->session()->getId();
+    }
+
+    private function posterBatchState(string $batchId): ?array
+    {
+        $raw = Cache::get('admin:poster-batch:' . $batchId);
+
+        return is_array($raw) ? $raw : null;
+    }
+
+    private function putPosterBatchState(string $batchId, array $state): void
+    {
+        Cache::put('admin:poster-batch:' . $batchId, $state, now()->addHours(6));
+    }
+
+    private function rememberPosterBatchId(Request $request, string $batchId): void
+    {
+        $userId = optional($request->user())->id;
+        $key = $userId
+            ? ('admin:poster-batch:last:user:' . $userId)
+            : ('admin:poster-batch:last:session:' . $request->session()->getId());
+        Cache::put($key, $batchId, now()->addHours(12));
+    }
+
+    private function lastPosterBatchId(Request $request): string
+    {
+        $userId = optional($request->user())->id;
+        $key = $userId
+            ? ('admin:poster-batch:last:user:' . $userId)
+            : ('admin:poster-batch:last:session:' . $request->session()->getId());
+
+        return (string) Cache::get($key, '');
     }
 }
