@@ -144,10 +144,14 @@ return [
     'redis' => [
 
         /*
-         * phpredis = extensión C (rápida). Si no está instalada y usás CACHE_DRIVER=redis,
-         * dejá REDIS_CLIENT vacío o poné predis (requiere predis/predis en composer).
+         * phpredis = extensión C (rápida). predis = PHP puro (composer predis/predis).
+         * Si REDIS_CLIENT=phpredis pero la extensión no está cargada, se usa predis para evitar LogicException.
          */
-        'client' => env('REDIS_CLIENT') ?: (extension_loaded('redis') ? 'phpredis' : 'predis'),
+        'client' => match (strtolower(trim((string) env('REDIS_CLIENT', '')))) {
+            'predis' => 'predis',
+            'phpredis' => extension_loaded('redis') ? 'phpredis' : 'predis',
+            default => extension_loaded('redis') ? 'phpredis' : 'predis',
+        },
 
         'options' => [
             'cluster' => env('REDIS_CLUSTER', 'redis'),
