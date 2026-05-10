@@ -2,7 +2,9 @@
 
 namespace App\Exceptions;
 
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Exceptions\Handler as ExceptionHandler;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Throwable;
 
 class Handler extends ExceptionHandler
@@ -50,6 +52,24 @@ class Handler extends ExceptionHandler
      */
     public function render($request, Throwable $exception)
     {
+        if ($this->shouldRedirectMissingPageToExplore($request, $exception)) {
+            return redirect()->route('explore.index', [], 302);
+        }
+
         return parent::render($request, $exception);
+    }
+
+    /**
+     * Rutas web inexistentes o modelos no encontrados (p. ej. /p/{id}) → índice /explorar.
+     * La API sigue respondiendo 404 JSON.
+     */
+    private function shouldRedirectMissingPageToExplore($request, Throwable $exception): bool
+    {
+        if ($request->is('api/*')) {
+            return false;
+        }
+
+        return $exception instanceof ModelNotFoundException
+            || $exception instanceof NotFoundHttpException;
     }
 }
