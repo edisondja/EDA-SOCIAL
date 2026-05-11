@@ -2,6 +2,25 @@
 
 @section('title', ($branding['site_name'] ?? 'EDA_SOCIAL') . ' · Explorar')
 
+@push('styles')
+<style>
+    /* El feed no usa .video-preview (eda-social.css); el hover activa .is-preview-active en el <a>. */
+    .js-video-hover-preview { position: relative; display: block; }
+    .js-video-hover-preview .edc-card-thumb {
+        position: relative; z-index: 0; width: 100%; height: 100%; object-fit: cover;
+        transition: transform 0.28s ease, filter 0.28s ease;
+    }
+    .js-video-hover-preview .video-card-hover-video {
+        position: absolute; inset: 0; z-index: 1; width: 100%; height: 100%; object-fit: cover;
+        opacity: 0; transition: opacity 0.28s ease; pointer-events: none;
+    }
+    .js-video-hover-preview.is-preview-active .video-card-hover-video { opacity: 1; }
+    .js-video-hover-preview.is-preview-active .edc-card-thumb {
+        transform: scale(1.03); filter: brightness(0.92);
+    }
+</style>
+@endpush
+
 @section('content')
 <section class="mb-8 rounded-2xl border border-slate-200/80 bg-white p-5 shadow-soft sm:p-6">
     <form method="get" action="{{ route('explore.index') }}" class="flex flex-col gap-6">
@@ -132,7 +151,15 @@
       el.addEventListener('mouseleave', function () {
         el.classList.remove('is-preview-active');
         vid.pause();
-        try { vid.currentTime = 0; } catch (e) {}
+        /* No forzar currentTime = 0: en algunos navegadores/clips deja el <video> en error y no vuelve a mostrar frames. */
+        try {
+          if (vid.seekable && vid.seekable.length > 0) {
+            var t = vid.seekable.start(0);
+            if (Number.isFinite(t) && t >= 0) {
+              vid.currentTime = t;
+            }
+          }
+        } catch (e) {}
       });
     });
   }

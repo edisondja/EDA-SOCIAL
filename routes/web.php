@@ -73,6 +73,15 @@ Route::middleware(['auth', 'admin_or_mod_web'])->prefix('admin')->group(function
     Route::post('/verificacion', 'Web\AdminPanelController@uploadVerification')->name('admin.verification');
     Route::post('/sitemap', 'Web\AdminPanelController@writeSitemap')->name('admin.sitemap');
     Route::get('/sitemap/status', 'Web\AdminPanelController@sitemapGenerationStatus')->name('admin.sitemap_status');
+    Route::post('/monitoreo/storage/duplicate-content', 'Web\AdminPanelController@storageDeleteDuplicateContent')
+        ->middleware('throttle:10,1')
+        ->name('admin.storage.duplicate_content');
+    Route::post('/monitoreo/storage/orphans', 'Web\AdminPanelController@storageDeleteOrphans')
+        ->middleware('throttle:10,1')
+        ->name('admin.storage.orphans');
+    Route::post('/monitoreo/storage/hls-purge-sources', 'Web\AdminPanelController@storagePurgeHlsSources')
+        ->middleware('throttle:20,1')
+        ->name('admin.storage.hls_purge');
     Route::get('/colas/estado', 'Web\AdminPanelController@queueMonitorStatus')
         ->middleware('throttle:60,1')
         ->name('admin.queue_status');

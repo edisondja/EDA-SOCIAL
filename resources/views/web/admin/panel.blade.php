@@ -431,6 +431,61 @@
                         <tbody id="admin-queue-live-tbody"></tbody>
                     </table>
                 </div>
+
+                <div class="mt-6 space-y-5 border-t border-slate-200 pt-5">
+                    <div>
+                        <h4 class="text-sm font-bold text-slate-900">Jobs en ejecución <span class="font-normal text-slate-500">(driver database)</span></h4>
+                        <p class="hint-text mb-2" style="font-size:11px;">Filas <code>jobs</code> con <code>reserved_at</code> no nulo: un worker está procesando cada una. Se actualiza cada ~2&nbsp;s.</p>
+                        <div class="overflow-x-auto rounded-lg border border-slate-200">
+                            <table class="w-full min-w-[520px] border-collapse text-xs sm:text-sm">
+                                <thead>
+                                    <tr class="border-b border-slate-200 bg-slate-50 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500 sm:text-xs">
+                                        <th class="py-2 pl-2 pr-2">ID</th>
+                                        <th class="py-2 pr-2">Cola</th>
+                                        <th class="py-2 pr-2">Job</th>
+                                        <th class="py-2 pr-2 text-right">Intentos</th>
+                                        <th class="py-2 pr-2 text-right">Seg. activo</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="admin-queue-active-jobs-tbody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div>
+                        <h4 class="text-sm font-bold text-slate-900">Siguientes en cola <span class="font-normal text-slate-500">(muestra, database)</span></h4>
+                        <p class="hint-text mb-2" style="font-size:11px;">Primeros jobs en espera (<code>reserved_at</code> nulo), orden por ID.</p>
+                        <div class="overflow-x-auto rounded-lg border border-slate-200">
+                            <table class="w-full min-w-[480px] border-collapse text-xs sm:text-sm">
+                                <thead>
+                                    <tr class="border-b border-slate-200 bg-slate-50 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500 sm:text-xs">
+                                        <th class="py-2 pl-2 pr-2">ID</th>
+                                        <th class="py-2 pr-2">Cola</th>
+                                        <th class="py-2 pr-2">Job</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="admin-queue-waiting-jobs-tbody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div>
+                        <h4 class="text-sm font-bold text-slate-900">Workers RabbitMQ <span class="font-normal text-slate-500">(consumidores conectados)</span></h4>
+                        <p class="hint-text mb-2" style="font-size:11px;">API <code>/api/consumers</code>: cada fila es un canal consumiendo (típicamente un <code>php artisan queue:work</code>). Los mensajes “en proceso” siguen en la tabla de arriba como <code>unacked</code>.</p>
+                        <div class="overflow-x-auto rounded-lg border border-slate-200">
+                            <table class="w-full min-w-[520px] border-collapse text-xs sm:text-sm">
+                                <thead>
+                                    <tr class="border-b border-slate-200 bg-slate-50 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500 sm:text-xs">
+                                        <th class="py-2 pl-2 pr-2">Cola</th>
+                                        <th class="py-2 pr-2">Consumer tag</th>
+                                        <th class="py-2 pr-2 text-right">Prefetch</th>
+                                        <th class="py-2 pr-2">Canal</th>
+                                        <th class="py-2 pr-2">Cliente</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="admin-queue-rabbit-consumers-tbody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
             </section>
             <script>
             (function () {
@@ -438,6 +493,9 @@
                 var workerStatusUrl = @json(route('admin.worker_media_status', [], false));
                 var workerStartUrl = @json(route('admin.worker_media_start', [], false));
                 var tbody = document.getElementById('admin-queue-live-tbody');
+                var tbodyActive = document.getElementById('admin-queue-active-jobs-tbody');
+                var tbodyWait = document.getElementById('admin-queue-waiting-jobs-tbody');
+                var tbodyRabbit = document.getElementById('admin-queue-rabbit-consumers-tbody');
                 var errEl = document.getElementById('admin-queue-live-error');
                 var metaEl = document.getElementById('admin-queue-live-meta');
                 var updatedEl = document.getElementById('admin-queue-live-updated');
@@ -463,7 +521,11 @@
                         }
                     }
                     if (metaEl) {
-                        metaEl.textContent = 'Driver: ' + (data.driver || '—') + ' · Fuente: ' + (data.source || '—') + ' · Jobs fallidos (tabla): ' + (data.failed_jobs != null ? data.failed_jobs : '—');
+                        var aj = (data.active_jobs && data.active_jobs.length) ? data.active_jobs.length : 0;
+                        var wj = (data.waiting_jobs && data.waiting_jobs.length) ? data.waiting_jobs.length : 0;
+                        var rc = (data.rabbit_consumers && data.rabbit_consumers.length) ? data.rabbit_consumers.length : 0;
+                        metaEl.textContent = 'Driver: ' + (data.driver || '—') + ' · Fuente: ' + (data.source || '—') + ' · Fallidos: ' + (data.failed_jobs != null ? data.failed_jobs : '—')
+                            + ' · Activos (BD): ' + aj + ' · Muestra espera: ' + wj + ' · Consumers AMQP: ' + rc;
                     }
                     if (updatedEl) {
                         updatedEl.textContent = data.updated_at ? ('Actualizado: ' + data.updated_at) : '';
@@ -484,6 +546,61 @@
                             '<td class="py-2 text-right text-xs text-slate-600">' + esc(st) + '</td>' +
                             '</tr>';
                     }).join('');
+
+                    var drv = data.driver || '';
+                    if (tbodyActive) {
+                        var act = data.active_jobs || [];
+                        if (drv !== 'database') {
+                            tbodyActive.innerHTML = '<tr><td colspan="5" class="py-3 pl-2 text-slate-500">Solo con <code>QUEUE_CONNECTION=database</code> (ahora: ' + esc(drv) + ').</td></tr>';
+                        } else if (!act.length) {
+                            tbodyActive.innerHTML = '<tr><td colspan="5" class="py-3 pl-2 text-slate-500">Ningún job reservado ahora mismo.</td></tr>';
+                        } else {
+                            tbodyActive.innerHTML = act.map(function (j) {
+                                return '<tr class="border-t border-slate-100">' +
+                                    '<td class="py-2 pl-2 pr-2 font-mono text-slate-700">' + esc(String(j.id)) + '</td>' +
+                                    '<td class="py-2 pr-2 font-medium text-slate-800">' + esc(j.queue || '') + '</td>' +
+                                    '<td class="py-2 pr-2 text-slate-700" style="word-break:break-word;">' + esc(j.label || '') + '</td>' +
+                                    '<td class="py-2 pr-2 text-right tabular-nums">' + esc(String(j.attempts != null ? j.attempts : 0)) + '</td>' +
+                                    '<td class="py-2 pr-2 text-right tabular-nums text-slate-900">' + esc(String(j.running_seconds != null ? j.running_seconds : 0)) + '</td>' +
+                                    '</tr>';
+                            }).join('');
+                        }
+                    }
+                    if (tbodyWait) {
+                        var wait = data.waiting_jobs || [];
+                        if (drv !== 'database') {
+                            tbodyWait.innerHTML = '<tr><td colspan="3" class="py-3 pl-2 text-slate-500">Solo con <code>QUEUE_CONNECTION=database</code>.</td></tr>';
+                        } else if (!wait.length) {
+                            tbodyWait.innerHTML = '<tr><td colspan="3" class="py-3 pl-2 text-slate-500">Cola de espera vacía (o no hay más en la muestra).</td></tr>';
+                        } else {
+                            tbodyWait.innerHTML = wait.map(function (j) {
+                                return '<tr class="border-t border-slate-100">' +
+                                    '<td class="py-2 pl-2 pr-2 font-mono text-slate-700">' + esc(String(j.id)) + '</td>' +
+                                    '<td class="py-2 pr-2 font-medium text-slate-800">' + esc(j.queue || '') + '</td>' +
+                                    '<td class="py-2 pr-2 text-slate-700" style="word-break:break-word;">' + esc(j.label || '') + '</td>' +
+                                    '</tr>';
+                            }).join('');
+                        }
+                    }
+                    if (tbodyRabbit) {
+                        var cons = data.rabbit_consumers || [];
+                        if (drv !== 'rabbitmq') {
+                            tbodyRabbit.innerHTML = '<tr><td colspan="5" class="py-3 pl-2 text-slate-500">Solo con <code>QUEUE_CONNECTION=rabbitmq</code> y API de management (ahora: ' + esc(drv) + ').</td></tr>';
+                        } else if (!cons.length) {
+                            tbodyRabbit.innerHTML = '<tr><td colspan="5" class="py-3 pl-2 text-slate-500">Sin consumidores listados (¿worker apagado o colas fuera de <code>RABBITMQ_ADMIN_QUEUE_NAMES</code>?).</td></tr>';
+                        } else {
+                            tbodyRabbit.innerHTML = cons.map(function (c) {
+                                var pf = c.prefetch != null ? String(c.prefetch) : '—';
+                                return '<tr class="border-t border-slate-100">' +
+                                    '<td class="py-2 pl-2 pr-2 font-medium text-slate-800">' + esc(c.queue || '') + '</td>' +
+                                    '<td class="py-2 pr-2 text-slate-700" style="word-break:break-all;">' + esc(c.tag || '') + '</td>' +
+                                    '<td class="py-2 pr-2 text-right tabular-nums">' + esc(pf) + '</td>' +
+                                    '<td class="py-2 pr-2 text-xs text-slate-600" style="word-break:break-all;">' + esc(c.channel || '') + '</td>' +
+                                    '<td class="py-2 pr-2 text-xs text-slate-600">' + esc(c.peer || '') + '</td>' +
+                                    '</tr>';
+                            }).join('');
+                        }
+                    }
                 }
 
                 function tick() {
@@ -554,7 +671,7 @@
                 }
                 tick();
                 tickWorker();
-                setInterval(tick, 2800);
+                setInterval(tick, 2000);
                 setInterval(tickWorker, 5000);
             })();
             </script>
@@ -724,6 +841,130 @@ RABBITMQ_ADMIN_QUEUE_NAMES=media,default</pre>
                     <p class="hint-text">Libre: {{ $disk['free_gb'] !== null ? number_format((float) $disk['free_gb'], 2, ',', '.') : 'N/D' }} GB</p>
                 </div>
             </div>
+
+            @php
+                $st = $mon['storage'] ?? [];
+                $fmtB = function (int $b) {
+                    $u = ['B','KB','MB','GB','TB']; $i = 0; $v = (float) $b;
+                    while ($v >= 1024 && $i < count($u) - 1) { $v /= 1024; $i++; }
+                    return ($i === 0 ? (string) (int) $v : number_format($v, 2, ',', '.')) . ' ' . $u[$i];
+                };
+            @endphp
+            @if(!empty($st['error']))
+                <div class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900" style="margin:12px 0;">{{ $st['error'] }}</div>
+            @elseif(!empty($st))
+                <h3 class="mt-6 text-base font-bold text-slate-900">Almacenamiento de medios (público)</h3>
+                <p class="hint-text" style="margin:6px 0 10px;">Suma de archivos bajo <code>storage/app/public</code> referenciados en vídeos y medios, más carpetas HLS y portadas generadas. Los duplicados por contenido usan huella del primer 64&nbsp;KiB + tamaño (muy baja colisión).</p>
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-bottom:12px;">
+                    <div class="aspecto-card" style="margin:0;border-left:4px solid #6366f1;">
+                        <div class="aspecto-card-title">Imágenes (refs.)</div>
+                        <p class="text-lg font-bold">{{ $st['bytes_images_label'] ?? $fmtB((int)($st['bytes_images'] ?? 0)) }}</p>
+                    </div>
+                    <div class="aspecto-card" style="margin:0;border-left:4px solid #d83a7c;">
+                        <div class="aspecto-card-title">Vídeo local (refs., sin HLS)</div>
+                        <p class="text-lg font-bold">{{ $st['bytes_videos_local_label'] ?? $fmtB((int)($st['bytes_videos_local'] ?? 0)) }}</p>
+                    </div>
+                    <div class="aspecto-card" style="margin:0;border-left:4px solid #0d9488;">
+                        <div class="aspecto-card-title">Carpeta HLS (total)</div>
+                        <p class="text-lg font-bold">{{ $st['bytes_hls_folder_total_label'] ?? $fmtB((int)($st['bytes_hls_folder_total'] ?? 0)) }}</p>
+                        <p class="hint-text" style="font-size:11px;">Incluye segmentos .ts</p>
+                    </div>
+                    <div class="aspecto-card" style="margin:0;border-left:4px solid #94a3b8;">
+                        <div class="aspecto-card-title">Portadas / previews</div>
+                        <p class="text-lg font-bold">{{ $st['bytes_generated_previews_label'] ?? $fmtB((int)($st['bytes_generated_previews_folder'] ?? 0)) }}</p>
+                    </div>
+                    <div class="aspecto-card" style="margin:0;border-left:4px solid #1e293b;">
+                        <div class="aspecto-card-title">Total estimado</div>
+                        <p class="text-lg font-bold">{{ $st['bytes_grand_total_estimate_label'] ?? $fmtB((int)($st['bytes_grand_total_estimate'] ?? 0)) }}</p>
+                        <p class="hint-text" style="font-size:11px;">{{ (int)($st['referenced_files_count'] ?? 0) }} archivos únicos referenciados · {{ (int)($st['missing_references'] ?? 0) }} refs. rotas</p>
+                    </div>
+                </div>
+
+                @foreach($st['alerts'] ?? [] as $al)
+                    <div class="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-900" style="margin:8px 0;" role="alert">
+                        <strong>Alerta ({{ $al['type'] ?? 'aviso' }}):</strong> {{ $al['message'] ?? '' }}
+                    </div>
+                @endforeach
+
+                @if(!empty($st['path_duplicates']))
+                    <div class="aspecto-card" style="margin:12px 0;">
+                        <div class="aspecto-card-title">Misma ruta en varias filas</div>
+                        <p class="hint-text">No duplican bytes en disco; revisá si querés unificar datos.</p>
+                        <ul class="hint-text" style="font-size:12px;max-height:160px;overflow:auto;">
+                            @foreach($st['path_duplicates'] as $pd)
+                                <li><code>{{ $pd['relative'] ?? '' }}</code> — {{ count($pd['refs'] ?? []) }} refs.</li>
+                            @endforeach
+                        </ul>
+                    </div>
+                @endif
+
+                @if(!empty($st['content_duplicate_groups']))
+                    <div class="aspecto-card" style="margin:12px 0;">
+                        <div class="aspecto-card-title">Archivos repetidos (contenido)</div>
+                        <p class="hint-text">Elegí cuál conservar; el resto se borra y las URLs en BD apuntan al conservado.</p>
+                        @foreach($st['content_duplicate_groups'] as $g)
+                            <div style="margin:10px 0;padding:10px;border:1px solid #e2e8f0;border-radius:8px;background:#fafafa;">
+                                <p class="hint-text" style="margin:0 0 6px;"><strong>~{{ $fmtB((int)($g['wasted_bytes'] ?? 0)) }}</strong> recuperables · {{ $fmtB((int)($g['bytes_each'] ?? 0)) }} c/u</p>
+                                <ul style="margin:0 0 8px;padding-left:18px;font-size:12px;">
+                                    @foreach($g['paths'] ?? [] as $p)
+                                        <li style="word-break:break-all;"><code>{{ $p }}</code></li>
+                                    @endforeach
+                                </ul>
+                                @foreach($g['paths'] ?? [] as $keepPath)
+                                    <form method="post" action="{{ route('admin.storage.duplicate_content') }}" style="display:inline;margin-right:6px;margin-bottom:6px;" onsubmit="return confirm('¿Conservar {{ $keepPath }} y borrar las otras copias?');">
+                                        @csrf
+                                        <input type="hidden" name="fingerprint" value="{{ $g['fingerprint'] }}">
+                                        <input type="hidden" name="keep_relative" value="{{ $keepPath }}">
+                                        <button type="submit" class="btn-secondary" style="font-size:11px;">Conservar esta: {{ \Illuminate\Support\Str::limit($keepPath, 42) }}</button>
+                                    </form>
+                                @endforeach
+                            </div>
+                        @endforeach
+                        @if(($st['content_duplicate_groups_count'] ?? 0) > count($st['content_duplicate_groups']))
+                            <p class="hint-text">… y {{ (int)$st['content_duplicate_groups_count'] - count($st['content_duplicate_groups']) }} grupos más (refrescá tras limpiar).</p>
+                        @endif
+                    </div>
+                @endif
+
+                @if(!empty($st['orphan_files']))
+                    <div class="aspecto-card" style="margin:12px 0;">
+                        <div class="aspecto-card-title">Huérfanos (no en BD)</div>
+                        <p class="hint-text">~{{ $fmtB((int)($st['orphan_bytes_total'] ?? 0)) }} en {{ (int)($st['orphan_files_count'] ?? 0) }} archivos listados (tope de escaneo).</p>
+                        <form method="post" action="{{ route('admin.storage.orphans') }}" onsubmit="return confirm('¿Eliminar los huérfanos marcados del disco?');">
+                            @csrf
+                            @foreach($st['orphan_files'] as $of)
+                                <label class="flex items-start gap-2 hint-text" style="font-size:12px;margin:4px 0;">
+                                    <input type="checkbox" name="relative_paths[]" value="{{ $of['relative'] ?? '' }}">
+                                    <span><code>{{ $of['relative'] ?? '' }}</code> ({{ $fmtB((int)($of['bytes'] ?? 0)) }})</span>
+                                </label>
+                            @endforeach
+                            <button type="submit" class="btn-secondary label-with-icon mt-2" style="margin-top:8px;">@include('web.partials.form-icon', ['name' => 'no-symbol', 'size' => 14]) Eliminar seleccionados</button>
+                        </form>
+                    </div>
+                @endif
+
+                @if(!empty($st['hls_redundant_rows']))
+                    <div class="aspecto-card" style="margin:12px 0;">
+                        <div class="aspecto-card-title">HLS activo: borrar MP4/WebM de respaldo</div>
+                        <p class="hint-text">Si la reproducción principal ya es <code>.m3u8</code> bajo <code>hls/</code>, podés quitar clips MP4 locales en preview o medios para ahorrar espacio (no toca miniaturas ni el HLS).</p>
+                        @foreach($st['hls_redundant_rows'] as $row)
+                            <div style="margin:8px 0;padding:8px;border:1px solid #e2e8f0;border-radius:8px;">
+                                <p style="margin:0;font-size:13px;"><strong>#{{ $row['video_id'] ?? '' }}</strong> {{ \Illuminate\Support\Str::limit($row['title'] ?? '', 60) }} — ~{{ $fmtB((int)($row['recoverable_bytes'] ?? 0)) }}</p>
+                                <ul class="hint-text" style="font-size:11px;margin:4px 0;">
+                                    @foreach($row['rows'] ?? [] as $line)
+                                        <li>{{ $line }}</li>
+                                    @endforeach
+                                </ul>
+                                <form method="post" action="{{ route('admin.storage.hls_purge') }}" style="display:inline;" onsubmit="return confirm('¿Borrar archivos de vídeo de respaldo del vídeo #{{ $row['video_id'] ?? '' }}?');">
+                                    @csrf
+                                    <input type="hidden" name="video_id" value="{{ $row['video_id'] ?? '' }}">
+                                    <button type="submit" class="btn-secondary" style="font-size:11px;">Liberar origen (este vídeo)</button>
+                                </form>
+                            </div>
+                        @endforeach
+                    </div>
+                @endif
+            @endif
 
             <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:12px;">
                 <div class="aspecto-card" style="margin:0;">

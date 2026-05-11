@@ -93,6 +93,8 @@ return [
             'management_port' => (int) env('RABBITMQ_MANAGEMENT_PORT', 15672),
             'management_user' => env('RABBITMQ_MANAGEMENT_USER'),
             'management_password' => env('RABBITMQ_MANAGEMENT_PASSWORD'),
+            /* Nombres de cola a mostrar en el panel admin (monitor + consumidores). */
+            'admin_queue_names' => env('RABBITMQ_ADMIN_QUEUE_NAMES', 'media,default'),
         ],
 
     ],

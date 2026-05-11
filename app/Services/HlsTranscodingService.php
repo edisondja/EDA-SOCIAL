@@ -2,9 +2,9 @@
 
 namespace App\Services;
 
+use App\Support\PublicDiskMediaPathResolver;
 use App\Video;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
 
 class HlsTranscodingService
 {
@@ -32,7 +32,7 @@ class HlsTranscodingService
                 continue;
             }
 
-            $srcRel = $this->resolvePublicDiskRelativePath($url, $video);
+            $srcRel = $this->resolvePublicDiskRelativePath($url);
             if ($srcRel === null) {
                 continue;
             }
@@ -122,7 +122,7 @@ class HlsTranscodingService
 
         // Evita borrar si preview_url apunta al mismo archivo.
         if ($video->preview_url) {
-            $previewRel = $this->resolvePublicDiskRelativePath((string) $video->preview_url, $video);
+            $previewRel = $this->resolvePublicDiskRelativePath((string) $video->preview_url);
             if ($previewRel !== null && $previewRel === $srcRel) {
                 return;
             }
@@ -131,37 +131,9 @@ class HlsTranscodingService
         Storage::disk('public')->delete($srcRel);
     }
 
-    private function resolvePublicDiskRelativePath(string $storedUrl, Video $video): ?string
+    private function resolvePublicDiskRelativePath(string $storedUrl): ?string
     {
-        $storedUrl = trim($storedUrl);
-        if ($storedUrl === '') {
-            return null;
-        }
-
-        $path = '';
-        if (preg_match('#^https?://#i', $storedUrl)) {
-            $host = (string) (parse_url($storedUrl, PHP_URL_HOST) ?: '');
-            $appHost = (string) (parse_url((string) config('app.url'), PHP_URL_HOST) ?: '');
-            $reqHost = '';
-            try {
-                $reqHost = (string) request()->getHost();
-            } catch (\Throwable $e) {
-                $reqHost = '';
-            }
-            if ($host === '' || !in_array(strtolower($host), array_filter([strtolower($appHost), strtolower($reqHost)]), true)) {
-                return null;
-            }
-            $path = (string) (parse_url($storedUrl, PHP_URL_PATH) ?: '');
-        } else {
-            $path = $storedUrl;
-        }
-
-        $path = ltrim($path, '/');
-        if (!Str::startsWith($path, 'storage/')) {
-            return null;
-        }
-
-        return ltrim(substr($path, strlen('storage/')), '/');
+        return PublicDiskMediaPathResolver::storedUrlToPublicRelative($storedUrl);
     }
 
     private function resolveFfmpegBinary(): ?string

@@ -141,12 +141,32 @@ class ExploreController extends Controller
                 continue;
             }
 
-            $previewUrl = (string) $hlsPreviewService->randomSegmentUrlForVideo($video);
+            /*
+             * El <video> del feed solo admite contenedores típicos (MP4/WebM/MOV…).
+             * Un segmento .ts de HLS como src suele romper el decodificador: tras hover queda en error y “desaparece” la vista previa.
+             */
+            $previewUrl = trim((string) $video->preview_url);
+            if ($previewUrl !== '' && !$this->isDirectVideoElementPlayableUrl($previewUrl)) {
+                $previewUrl = '';
+            }
             if ($previewUrl === '') {
-                $previewUrl = trim((string) $video->preview_url);
+                $candidate = (string) $hlsPreviewService->randomSegmentUrlForVideo($video);
+                if ($candidate !== '' && $this->isDirectVideoElementPlayableUrl($candidate)) {
+                    $previewUrl = $candidate;
+                }
             }
 
             $video->setAttribute('card_preview_url', $previewUrl);
         }
+    }
+
+    /**
+     * URLs que el elemento HTML {@code <video src>} puede reproducir de forma fiable (no .ts suelto ni .m3u8).
+     */
+    private function isDirectVideoElementPlayableUrl(string $url): bool
+    {
+        $path = strtolower((string) (parse_url($url, PHP_URL_PATH) ?: $url));
+
+        return (bool) preg_match('/\.(mp4|webm|mov|m4v|mkv|ogv)(\?.*)?$/i', $path);
     }
 }

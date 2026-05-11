@@ -11,6 +11,7 @@ use App\Jobs\EnqueueMissingPosterJobsJob;
 use App\Jobs\GenerateVideoPosterProgressJob;
 use App\Jobs\GenerateVideoHlsJob;
 use App\Role;
+use App\Services\AdminStorageAuditService;
 use App\Services\GoogleTrendsRssService;
 use App\Services\IntegrationConnectivityService;
 use App\Services\QueueMonitorService;
@@ -386,6 +387,63 @@ class AdminPanelController extends Controller
     public function queueMonitorStatus(Request $request, QueueMonitorService $queueMonitorService)
     {
         return response()->json($queueMonitorService->snapshot());
+    }
+
+    public function storageDeleteDuplicateContent(Request $request, AdminStorageAuditService $audit)
+    {
+        $data = $request->validate([
+            'fingerprint' => 'required|string|max:128',
+            'keep_relative' => 'required|string|max:512',
+        ]);
+        $r = $audit->deleteContentDuplicatesKeep($data['fingerprint'], $data['keep_relative']);
+
+        $redirect = redirect()
+            ->route('admin.panel', ['section' => 'monitoreo'])
+            ->with('status', 'Duplicados por contenido: borrados ' . count($r['deleted']) . ', URLs actualizadas en ' . $r['updated_rows'] . ' filas.');
+        if ($r['errors'] !== []) {
+            $redirect->withErrors(['admin' => implode(' ', $r['errors'])]);
+        }
+
+        return $redirect;
+    }
+
+    public function storageDeleteOrphans(Request $request, AdminStorageAuditService $audit)
+    {
+        $data = $request->validate([
+            'relative_paths' => 'required|array|max:40',
+            'relative_paths.*' => 'string|max:512',
+        ]);
+        $r = $audit->deleteOrphanFiles($data['relative_paths']);
+
+        $redirect = redirect()
+            ->route('admin.panel', ['section' => 'monitoreo'])
+            ->with('status', 'Huérfanos eliminados: ' . count($r['deleted']) . '.');
+        if ($r['errors'] !== []) {
+            $redirect->withErrors(['admin' => implode(' ', $r['errors'])]);
+        }
+
+        return $redirect;
+    }
+
+    public function storagePurgeHlsSources(Request $request, AdminStorageAuditService $audit)
+    {
+        $data = $request->validate([
+            'video_id' => 'required|integer|exists:videos,id',
+        ]);
+        $r = $audit->purgeLocalVideoSourcesWhenHlsMain((int) $data['video_id']);
+        $msg = 'Vídeo #' . $data['video_id'] . ': archivos borrados ' . count($r['deleted']);
+        if ($r['cleared_fields'] !== []) {
+            $msg .= ' · ' . implode(', ', $r['cleared_fields']);
+        }
+
+        $redirect = redirect()
+            ->route('admin.panel', ['section' => 'monitoreo'])
+            ->with('status', $msg . '.');
+        if ($r['errors'] !== []) {
+            $redirect->withErrors(['admin' => implode(' ', $r['errors'])]);
+        }
+
+        return $redirect;
     }
 
     public function workerMediaStatus()
@@ -1021,6 +1079,16 @@ class AdminPanelController extends Controller
         $topCpu = $this->topProcesses('cpu');
         $topMem = $this->topProcesses('mem');
 
+        $storage = [];
+        try {
+            $storage = app(AdminStorageAuditService::class)->snapshot();
+        } catch (\Throwable $e) {
+            report($e);
+            $storage = [
+                'error' => config('app.debug') ? $e->getMessage() : 'No se pudo analizar el almacenamiento.',
+            ];
+        }
+
         return [
             'captured_at' => now()->toDateTimeString(),
             'memory' => $memory,
@@ -1028,6 +1096,7 @@ class AdminPanelController extends Controller
             'disk' => $disk,
             'top_cpu' => $topCpu,
             'top_mem' => $topMem,
+            'storage' => $storage,
             'note' => 'Datos estimados en el momento del refresco.',
         ];
     }
