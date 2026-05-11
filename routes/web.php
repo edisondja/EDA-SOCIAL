@@ -82,6 +82,9 @@ Route::middleware(['auth', 'admin_or_mod_web'])->prefix('admin')->group(function
     Route::post('/monitoreo/storage/hls-purge-sources', 'Web\AdminPanelController@storagePurgeHlsSources')
         ->middleware('throttle:20,1')
         ->name('admin.storage.hls_purge');
+    Route::get('/monitoreo/storage-audit', 'Web\AdminPanelController@monitoreoStorageAudit')
+        ->middleware('throttle:12,1')
+        ->name('admin.monitoreo.storage_audit');
     Route::get('/colas/estado', 'Web\AdminPanelController@queueMonitorStatus')
         ->middleware('throttle:60,1')
         ->name('admin.queue_status');

@@ -77,6 +77,10 @@ class AuthController extends Controller
 
     public function me(Request $request)
     {
-        return response()->json($request->user()->load('role', 'channel'));
+        $user = $request->user()->load('role', 'channel');
+
+        return response()->json(array_merge($user->toArray(), [
+            'unread_notifications_count' => $user->unreadNotifications()->count(),
+        ]));
     }
 }

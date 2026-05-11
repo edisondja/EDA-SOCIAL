@@ -1079,16 +1079,6 @@ class AdminPanelController extends Controller
         $topCpu = $this->topProcesses('cpu');
         $topMem = $this->topProcesses('mem');
 
-        $storage = [];
-        try {
-            $storage = app(AdminStorageAuditService::class)->snapshot();
-        } catch (\Throwable $e) {
-            report($e);
-            $storage = [
-                'error' => config('app.debug') ? $e->getMessage() : 'No se pudo analizar el almacenamiento.',
-            ];
-        }
-
         return [
             'captured_at' => now()->toDateTimeString(),
             'memory' => $memory,
@@ -1096,9 +1086,28 @@ class AdminPanelController extends Controller
             'disk' => $disk,
             'top_cpu' => $topCpu,
             'top_mem' => $topMem,
-            'storage' => $storage,
-            'note' => 'Datos estimados en el momento del refresco.',
+            'note' => 'Datos estimados en el momento del refresco. El análisis de almacenamiento se carga aparte (puede tardar).',
         ];
+    }
+
+    public function monitoreoStorageAudit()
+    {
+        if (function_exists('set_time_limit')) {
+            @set_time_limit(600);
+        }
+        @ini_set('max_execution_time', '600');
+
+        $st = [];
+        try {
+            $st = app(AdminStorageAuditService::class)->snapshot();
+        } catch (\Throwable $e) {
+            report($e);
+            $st = [
+                'error' => config('app.debug') ? $e->getMessage() : 'No se pudo analizar el almacenamiento.',
+            ];
+        }
+
+        return response()->view('web.admin.partials.monitoreo-storage-audit', ['st' => $st]);
     }
 
     private function memorySnapshot(): array

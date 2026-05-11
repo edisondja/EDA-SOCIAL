@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Controllers\Web\Concerns\SharesBranding;
 use App\Jobs\GenerateVideoCardMediaJob;
 use App\Jobs\GenerateVideoHlsJob;
+use App\Services\CommentNotificationDispatcher;
 use App\Services\VideoViewTracker;
 use App\Support\PlatformConfig;
 use App\Support\VideoAdPresentation;
@@ -236,13 +237,14 @@ class PostController extends Controller
             return redirect()->back()->withErrors(['parent_id' => $parentError])->withInput();
         }
 
-        Comment::create([
+        $comment = Comment::create([
             'video_id' => $video->id,
             'user_id' => $request->user()->id,
             'parent_id' => $parentId ?: null,
             'body' => $data['body'],
             'points' => 0,
         ]);
+        CommentNotificationDispatcher::afterCommentStored($comment);
         $this->flushVideoPageCache($video->id);
 
         return redirect()->route('posts.show', ['video' => $video->id, 'slug' => $video->playSlug()])
@@ -256,6 +258,10 @@ class PostController extends Controller
         ]);
 
         $comment->increment('points', $data['value']);
+        $comment->refresh();
+        if ((int) $data['value'] === 1 && $request->user()) {
+            CommentNotificationDispatcher::afterCommentUpvoted($comment, $request->user());
+        }
         $this->flushVideoPageCache($comment->video_id);
 
         return redirect()->back()->withFragment('comments');

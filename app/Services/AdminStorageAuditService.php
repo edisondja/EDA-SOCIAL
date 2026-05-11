@@ -23,6 +23,9 @@ final class AdminStorageAuditService
     /** Máx. huérfanos a listar. */
     private const MAX_ORPHAN_FILES = 500;
 
+    /** Máx. archivos recorridos al buscar huérfanos (evita recorrer millones de segmentos HLS u otros). */
+    private const MAX_ORPHAN_SCAN_ENTRIES = 40000;
+
     /**
      * @return array<string, mixed>
      */
@@ -81,7 +84,9 @@ final class AdminStorageAuditService
         $contentGroups = $this->buildContentDuplicateGroups($disk, array_keys($bytesByRel), self::MAX_FILES_FOR_CONTENT_HASH);
 
         $referencedRels = array_map([$this, 'normalizeRel'], array_keys($refsByRel));
-        $orphans = $this->findOrphanFiles($disk, $referencedRels);
+        $orphanMeta = $this->findOrphanFiles($disk, $referencedRels);
+        $orphans = $orphanMeta['files'];
+        $orphanScanCapped = $orphanMeta['scan_capped'];
 
         $hlsCleanup = $this->hlsRedundantLocalVideoRows();
 
@@ -110,6 +115,7 @@ final class AdminStorageAuditService
             'content_duplicate_groups_count' => count($contentGroups),
             'orphan_files' => array_slice($orphans, 0, 40),
             'orphan_files_count' => count($orphans),
+            'orphan_scan_capped' => $orphanScanCapped,
             'orphan_bytes_total' => array_sum(array_column($orphans, 'bytes')),
             'hls_redundant_rows' => array_slice($hlsCleanup, 0, 30),
             'hls_redundant_rows_count' => count($hlsCleanup),
@@ -466,7 +472,7 @@ final class AdminStorageAuditService
 
     /**
      * @param  list<string>  $referencedNormalized
-     * @return list<array{relative: string, bytes: int}>
+     * @return array{files: list<array{relative: string, bytes: int}>, scan_capped: bool}
      */
     private function findOrphanFiles($disk, array $referencedNormalized): array
     {
@@ -477,12 +483,14 @@ final class AdminStorageAuditService
 
         $rootAbs = realpath($disk->path('.'));
         if ($rootAbs === false) {
-            return [];
+            return ['files' => [], 'scan_capped' => false];
         }
         $rootNorm = rtrim(str_replace('\\', '/', $rootAbs), '/');
 
         $roots = ['uploads', 'videos', 'media', 'generated-previews'];
         $out = [];
+        $scanEntries = 0;
+        $scanCapped = false;
         foreach ($roots as $root) {
             if (!$disk->exists($root)) {
                 continue;
@@ -491,6 +499,11 @@ final class AdminStorageAuditService
                 new \RecursiveDirectoryIterator($disk->path($root), \FilesystemIterator::SKIP_DOTS)
             );
             foreach ($iterator as $file) {
+                $scanEntries++;
+                if ($scanEntries > self::MAX_ORPHAN_SCAN_ENTRIES) {
+                    $scanCapped = true;
+                    break 2;
+                }
                 if (count($out) >= self::MAX_ORPHAN_FILES) {
                     break 2;
                 }
@@ -516,7 +529,7 @@ final class AdminStorageAuditService
 
         usort($out, fn ($a, $b) => ($b['bytes'] ?? 0) <=> ($a['bytes'] ?? 0));
 
-        return $out;
+        return ['files' => $out, 'scan_capped' => $scanCapped];
     }
 
     /**
@@ -531,6 +544,13 @@ final class AdminStorageAuditService
             ->select(['id', 'title', 'video_url', 'preview_url'])
             ->orderByDesc('id')
             ->chunkById(100, function ($videos) use (&$out, $disk): void {
+                $ids = $videos->pluck('id')->all();
+                $mediaByVideo = VideoMedia::query()
+                    ->whereIn('video_id', $ids)
+                    ->where('type', 'video')
+                    ->get(['id', 'video_id', 'url'])
+                    ->groupBy('video_id');
+
                 foreach ($videos as $v) {
                     $main = trim((string) $v->video_url);
                     if ($main === '' || !preg_match('#/hls/.+\.m3u8(\?|$)#i', $main)) {
@@ -549,7 +569,7 @@ final class AdminStorageAuditService
                             $rows[] = 'preview_url → ' . $rel;
                         }
                     }
-                    foreach (VideoMedia::query()->where('video_id', $v->id)->where('type', 'video')->get(['id', 'url']) as $m) {
+                    foreach ($mediaByVideo->get($v->id, collect()) as $m) {
                         $u = trim((string) $m->url);
                         if ($u === '' || !$this->isLocalVideoExtension($u)) {
                             continue;
@@ -641,10 +661,16 @@ final class AdminStorageAuditService
         if ($relativeDir === '' || !$disk->exists($relativeDir)) {
             return 0;
         }
+        $abs = $disk->path($relativeDir);
+        $viaDu = $this->directoryTotalBytesSystemDu($abs);
+        if ($viaDu !== null) {
+            return $viaDu;
+        }
+
         $total = 0;
         try {
             $iterator = new \RecursiveIteratorIterator(
-                new \RecursiveDirectoryIterator($disk->path($relativeDir), \FilesystemIterator::SKIP_DOTS)
+                new \RecursiveDirectoryIterator($abs, \FilesystemIterator::SKIP_DOTS)
             );
             foreach ($iterator as $file) {
                 if ($file->isFile()) {
@@ -656,6 +682,39 @@ final class AdminStorageAuditService
         }
 
         return $total;
+    }
+
+    /**
+     * Tamaño total de un directorio vía `du` (rápido con miles de archivos, p. ej. segmentos HLS).
+     * Devuelve null si no está disponible (shell deshabilitado, ruta inválida).
+     */
+    private function directoryTotalBytesSystemDu(string $absoluteDir): ?int
+    {
+        if (!is_dir($absoluteDir)) {
+            return null;
+        }
+        $real = realpath($absoluteDir);
+        if ($real === false) {
+            return null;
+        }
+        if (!function_exists('shell_exec')) {
+            return null;
+        }
+        $path = escapeshellarg($real);
+
+        // GNU coreutils: bytes exactos
+        $line = @shell_exec('du -sb ' . $path . ' 2>/dev/null');
+        if (is_string($line) && preg_match('/^(\d+)\s/', trim($line), $m)) {
+            return (int) $m[1];
+        }
+
+        // macOS / BusyBox: bloques de 1 KiB
+        $lineK = @shell_exec('du -sk ' . $path . ' 2>/dev/null');
+        if (is_string($lineK) && preg_match('/^(\d+)\s/', trim($lineK), $m2)) {
+            return (int) $m2[1] * 1024;
+        }
+
+        return null;
     }
 
     /**

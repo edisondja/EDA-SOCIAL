@@ -25,6 +25,10 @@ Route::get('/videos/{video}/comments', 'Api\CommentController@index');
 
 Route::middleware('auth:api')->group(function () {
     Route::get('/auth/me', 'Api\AuthController@me');
+    Route::get('/notifications', 'Api\NotificationController@index')->middleware('throttle:120,1');
+    Route::get('/notifications/unread-count', 'Api\NotificationController@unreadCount')->middleware('throttle:120,1');
+    Route::post('/notifications/read-all', 'Api\NotificationController@markAllRead')->middleware('throttle:30,1');
+    Route::post('/notifications/{id}/read', 'Api\NotificationController@markAsRead')->middleware('throttle:120,1');
     Route::post('/videos', 'Api\VideoController@store');
     Route::post('/uploads/media', 'Api\UploadController@media');
     Route::post('/videos/{video}/comments', 'Api\CommentController@store');

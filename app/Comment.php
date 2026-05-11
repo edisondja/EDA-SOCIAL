@@ -85,6 +85,34 @@ class Comment extends Model
             }
         }
 
-        return $roots->sortByDesc('created_at')->values();
+        $sortAndRank = function (Collection $nodes) use (&$sortAndRank): Collection {
+            $sorted = $nodes->sort(function (Comment $a, Comment $b) {
+                $pa = (int) $a->points;
+                $pb = (int) $b->points;
+                if ($pa !== $pb) {
+                    return $pb <=> $pa;
+                }
+                $ta = $a->created_at ? $a->created_at->getTimestamp() : 0;
+                $tb = $b->created_at ? $b->created_at->getTimestamp() : 0;
+                if ($ta !== $tb) {
+                    return $tb <=> $ta;
+                }
+
+                return ($b->id ?? 0) <=> ($a->id ?? 0);
+            })->values();
+
+            $rank = 1;
+            foreach ($sorted as $c) {
+                $c->setAttribute('vote_rank', $rank++);
+                $replies = $c->relationLoaded('replies') ? $c->replies : collect();
+                if ($replies->isNotEmpty()) {
+                    $c->setRelation('replies', $sortAndRank($replies));
+                }
+            }
+
+            return $sorted;
+        };
+
+        return $sortAndRank($roots);
     }
 }

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Comment;
 use App\Http\Controllers\Controller;
+use App\Services\CommentNotificationDispatcher;
 use App\Video;
 use Illuminate\Http\Request;
 
@@ -44,6 +45,8 @@ class CommentController extends Controller
             'points' => 0,
         ]);
 
+        CommentNotificationDispatcher::afterCommentStored($comment);
+
         return response()->json($comment->load('user:id,name,username,avatar_url'), 201);
     }
 
@@ -55,6 +58,10 @@ class CommentController extends Controller
 
         $comment->increment('points', $data['value']);
         $comment->refresh();
+
+        if ((int) $data['value'] === 1) {
+            CommentNotificationDispatcher::afterCommentUpvoted($comment, $request->user());
+        }
 
         return response()->json($comment->load('user:id,name,username,avatar_url'));
     }
