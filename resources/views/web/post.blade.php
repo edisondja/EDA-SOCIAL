@@ -66,6 +66,10 @@
         @endforelse
     </div>
 
+    @if(!empty($ads['banner_bottom_enabled']) && !empty($ads['banner_bottom_html']))
+        <div class="video-ad-slot video-ad-slot--bottom mt-8 rounded-xl border border-slate-100 bg-slate-50/80 p-3">{!! $ads['banner_bottom_html'] !!}</div>
+    @endif
+
     @php
         $shareUrl = $video->playUrl();
         $shareTitle = $video->title;
@@ -140,10 +144,6 @@
             <h2 id="single-video-desc-heading" class="text-lg font-bold text-slate-900">Descripción</h2>
             <div class="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-slate-700">{!! nl2br(e($video->description)) !!}</div>
         </section>
-    @endif
-
-    @if(!empty($ads['banner_bottom_enabled']) && !empty($ads['banner_bottom_html']))
-        <div class="video-ad-slot video-ad-slot--bottom mt-10 rounded-xl border border-slate-100 bg-slate-50/80 p-3">{!! $ads['banner_bottom_html'] !!}</div>
     @endif
 
     @if($video->hashtags->count())
