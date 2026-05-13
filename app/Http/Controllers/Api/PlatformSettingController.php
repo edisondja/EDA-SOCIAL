@@ -23,6 +23,7 @@ class PlatformSettingController extends Controller
         return response()->json([
             'menu_color' => $menuColor,
             'logo_url' => $logoUrl,
+            'favicon_url' => trim((string) PlatformConfig::get('site_favicon_url', '')),
             'site_name' => PlatformConfig::get('site_name', 'EDA_SOCIAL'),
             'site_description' => PlatformConfig::get('site_description', ''),
             'site_keywords' => PlatformConfig::get('site_keywords', ''),
@@ -89,10 +90,51 @@ class PlatformSettingController extends Controller
         ]);
     }
 
+    public function uploadFavicon(Request $request)
+    {
+        $data = $request->validate([
+            'favicon' => [
+                'required',
+                'file',
+                'max:1536',
+                function (string $attribute, mixed $file, \Closure $fail): void {
+                    if (!$file || !is_object($file) || !method_exists($file, 'getMimeType')) {
+                        $fail('Archivo inválido.');
+
+                        return;
+                    }
+                    $mime = (string) $file->getMimeType();
+                    $allowed = [
+                        'image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/svg+xml',
+                        'image/x-icon', 'image/vnd.microsoft.icon',
+                    ];
+                    if (!in_array($mime, $allowed, true)) {
+                        $fail('Formato no permitido. Usá PNG, JPG, GIF, WebP, SVG o ICO (máx. ~1,5 MB).');
+                    }
+                },
+            ],
+        ]);
+
+        $path = $data['favicon']->store('brand', 'public');
+        $url = Storage::disk('public')->url($path);
+        PlatformConfig::set('site_favicon_url', $url);
+
+        return response()->json([
+            'ok' => true,
+            'favicon_url' => $url,
+        ]);
+    }
+
+    public function clearFavicon(Request $request)
+    {
+        PlatformConfig::set('site_favicon_url', '');
+
+        return response()->json(['ok' => true, 'favicon_url' => '']);
+    }
+
     public function updateSeo(Request $request)
     {
         $rules = [
-            'site_name' => 'nullable|string|max:120',
             'site_description' => 'nullable|string|max:2000',
             'site_keywords' => 'nullable|string|max:500',
             'public_site_url' => 'nullable|string|max:255',

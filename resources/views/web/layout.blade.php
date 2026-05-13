@@ -21,8 +21,16 @@
             $metaImage = url($metaImage);
         }
         $metaOgType = (isset($seoOgType) && is_string($seoOgType) && trim($seoOgType) !== '') ? trim($seoOgType) : 'website';
+        $faviconHref = trim((string) \App\Support\PlatformConfig::get('site_favicon_url', ''));
+        if ($faviconHref !== '' && ! preg_match('#^https?://#i', $faviconHref)) {
+            $faviconHref = url($faviconHref);
+        }
     @endphp
     <title>@yield('title', ($branding['site_name'] ?? 'EDA_SOCIAL'))</title>
+    @if($faviconHref !== '')
+        <link rel="icon" href="{{ $faviconHref }}" sizes="any">
+        <link rel="shortcut icon" href="{{ $faviconHref }}">
+    @endif
     <meta name="description" content="{{ $metaDescription }}">
     <meta name="keywords" content="{{ $metaKeywords }}">
     <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1">

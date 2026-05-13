@@ -262,6 +262,20 @@ class AdminPanelController extends Controller
         }, 'Logo actualizado.');
     }
 
+    public function uploadFavicon(Request $request)
+    {
+        return $this->runApiForm($request, function () use ($request) {
+            return app(ApiPlatform::class)->uploadFavicon($request);
+        }, 'Favicon actualizado.');
+    }
+
+    public function clearFavicon(Request $request)
+    {
+        return $this->runApiForm($request, function () use ($request) {
+            return app(ApiPlatform::class)->clearFavicon($request);
+        }, 'Favicon eliminado.');
+    }
+
     public function storeCategory(Request $request)
     {
         $data = $request->validate(['name' => 'required|string|max:120']);

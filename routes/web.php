@@ -68,6 +68,8 @@ Route::middleware(['auth', 'admin_or_mod_web'])->prefix('admin')->group(function
     Route::post('/seo', 'Web\AdminPanelController@updateSeo')->name('admin.seo');
     Route::post('/menu-color', 'Web\AdminPanelController@updateMenuColor')->name('admin.menu_color');
     Route::post('/logo', 'Web\AdminPanelController@uploadLogo')->name('admin.logo');
+    Route::post('/seo/favicon', 'Web\AdminPanelController@uploadFavicon')->name('admin.favicon');
+    Route::post('/seo/favicon/eliminar', 'Web\AdminPanelController@clearFavicon')->name('admin.favicon_clear');
     Route::post('/categoria', 'Web\AdminPanelController@storeCategory')->name('admin.category');
     Route::post('/integraciones', 'Web\AdminPanelController@updateIntegrations')->name('admin.integrations');
     Route::post('/verificacion', 'Web\AdminPanelController@uploadVerification')->name('admin.verification');

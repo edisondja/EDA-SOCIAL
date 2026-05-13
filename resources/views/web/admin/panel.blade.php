@@ -96,6 +96,35 @@
                 <label class="field-label label-with-icon" for="admin_public_url">@include('web.partials.form-icon', ['name' => 'link']) URL pública del sitio</label>
                 <input id="admin_public_url" type="text" name="public_site_url" value="{{ old('public_site_url', $s('public_site_url')) }}" placeholder="https://…" maxlength="255">
                 <p class="hint-text" style="margin-top:6px;">Google y los navegadores penalizan <strong>contenido mixto</strong> (página en HTTPS con recursos en HTTP). En <strong>producción</strong> (<code>APP_ENV=production</code>) usá <code>APP_URL=https://…</code> y <strong>https://</strong> en «URL pública»; con <code>TRUSTED_PROXIES=*</code> si hay Nginx/Cloudflare. En local/staging no se fuerza HTTPS salvo <code>FORCE_HTTPS=true</code> en <code>.env</code>.</p>
+                @php
+                    $favRaw = trim((string) $s('site_favicon_url'));
+                    $favSrc = $favRaw !== '' && (\Illuminate\Support\Str::startsWith($favRaw, 'http://') || \Illuminate\Support\Str::startsWith($favRaw, 'https://'))
+                        ? $favRaw
+                        : ($favRaw !== '' ? url($favRaw) : '');
+                @endphp
+                <div style="margin-top:14px;padding:12px;border:1px solid #e2e8f0;border-radius:10px;background:#f8fafc;">
+                    <label class="field-label label-with-icon" for="admin_favicon_file">@include('web.partials.form-icon', ['name' => 'photo', 'size' => 16]) Favicon (pestaña del navegador)</label>
+                    <p class="hint-text" style="margin-top:4px;">PNG, JPG, GIF, WebP, SVG o ICO. Recomendado <strong>32×32</strong> o <strong>48×48</strong> px (ICO puede incluir varias resoluciones). Máx. ~1,5 MB.</p>
+                    @if($favSrc !== '')
+                        <div style="margin:10px 0;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+                            <img src="{{ $favSrc }}" alt="" width="32" height="32" style="border-radius:6px;border:1px solid #e2e8f0;background:#fff;padding:2px;">
+                            <span class="hint-text" style="font-size:12px;word-break:break-all;">{{ $favRaw }}</span>
+                        </div>
+                    @endif
+                    <form method="post" action="{{ route('admin.favicon') }}" enctype="multipart/form-data" style="margin-top:8px;">
+                        @csrf
+                        <input type="hidden" name="_section" value="{{ $section }}">
+                        <input id="admin_favicon_file" type="file" name="favicon" accept=".png,.jpg,.jpeg,.gif,.webp,.svg,.ico,image/*" required>
+                        <button type="submit" class="btn-primary label-with-icon" style="margin-top:8px;">@include('web.partials.form-icon', ['name' => 'arrow-down-tray']) Subir favicon</button>
+                    </form>
+                    @if($favSrc !== '')
+                        <form method="post" action="{{ route('admin.favicon_clear') }}" style="margin-top:10px;" onsubmit="return confirm('¿Quitar el favicon del sitio?');">
+                            @csrf
+                            <input type="hidden" name="_section" value="{{ $section }}">
+                            <button type="submit" class="btn-secondary label-with-icon">@include('web.partials.form-icon', ['name' => 'no-symbol']) Quitar favicon</button>
+                        </form>
+                    @endif
+                </div>
                 <label class="checkbox-with-icon">
                     @include('web.partials.form-icon', ['name' => 'arrow-path', 'size' => 16])
                     <span class="checkbox-with-icon-body checkbox-row" style="margin:0;"><input type="checkbox" name="use_router_links" {{ old('use_router_links', $s('use_router_links','1')) === '1' ? 'checked' : '' }}> Enlaces SPA (React Router) en el feed</span>

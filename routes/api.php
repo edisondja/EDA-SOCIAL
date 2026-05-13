@@ -38,6 +38,8 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/platform-settings', 'Api\PlatformSettingController@adminShow');
         Route::post('/platform-settings/menu-color', 'Api\PlatformSettingController@updateMenuColor');
         Route::post('/platform-settings/logo', 'Api\PlatformSettingController@uploadLogo');
+        Route::post('/platform-settings/favicon', 'Api\PlatformSettingController@uploadFavicon');
+        Route::post('/platform-settings/favicon/clear', 'Api\PlatformSettingController@clearFavicon');
         Route::post('/platform-settings/seo', 'Api\PlatformSettingController@updateSeo');
         Route::post('/platform-settings/integrations', 'Api\PlatformSettingController@updateIntegrations');
         Route::post('/platform-settings/video-ads', 'Api\PlatformSettingController@updateVideoAds');
