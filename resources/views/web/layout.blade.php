@@ -30,6 +30,7 @@
     @if($faviconHref !== '')
         <link rel="icon" href="{{ $faviconHref }}" sizes="any">
         <link rel="shortcut icon" href="{{ $faviconHref }}">
+        <link rel="apple-touch-icon" href="{{ $faviconHref }}">
     @endif
     <meta name="description" content="{{ $metaDescription }}">
     <meta name="keywords" content="{{ $metaKeywords }}">

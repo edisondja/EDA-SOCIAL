@@ -81,7 +81,7 @@ class PlatformSettingController extends Controller
         ]);
 
         $path = $data['logo']->store('brand', 'public');
-        $url = Storage::disk('public')->url($path);
+        $url = $this->publicStorageUrl($path);
 
         PlatformConfig::set('logo_url', $url);
 
@@ -103,21 +103,29 @@ class PlatformSettingController extends Controller
 
                         return;
                     }
-                    $mime = (string) $file->getMimeType();
-                    $allowed = [
+                    $mime = strtolower((string) $file->getMimeType());
+                    $ext = strtolower((string) $file->getClientOriginalExtension());
+                    $allowedMimes = [
                         'image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/svg+xml',
                         'image/x-icon', 'image/vnd.microsoft.icon',
                     ];
-                    if (!in_array($mime, $allowed, true)) {
-                        $fail('Formato no permitido. Usá PNG, JPG, GIF, WebP, SVG o ICO (máx. ~1,5 MB).');
+                    $allowedExt = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'ico'];
+                    if (in_array($mime, $allowedMimes, true)) {
+                        return;
                     }
+                    if (in_array($ext, $allowedExt, true) && in_array($mime, ['application/octet-stream', 'binary', 'image/ico'], true)) {
+                        return;
+                    }
+                    $fail('Formato no permitido. Usá PNG, JPG, GIF, WebP, SVG o ICO (máx. ~1,5 MB).');
                 },
             ],
         ]);
 
+        $previous = trim((string) PlatformConfig::get('site_favicon_url', ''));
         $path = $data['favicon']->store('brand', 'public');
-        $url = Storage::disk('public')->url($path);
+        $url = $this->publicStorageUrl($path);
         PlatformConfig::set('site_favicon_url', $url);
+        $this->deleteBrandFileIfStored($previous);
 
         return response()->json([
             'ok' => true,
@@ -127,7 +135,9 @@ class PlatformSettingController extends Controller
 
     public function clearFavicon(Request $request)
     {
+        $previous = trim((string) PlatformConfig::get('site_favicon_url', ''));
         PlatformConfig::set('site_favicon_url', '');
+        $this->deleteBrandFileIfStored($previous);
 
         return response()->json(['ok' => true, 'favicon_url' => '']);
     }
@@ -135,6 +145,7 @@ class PlatformSettingController extends Controller
     public function updateSeo(Request $request)
     {
         $rules = [
+            'site_name' => 'nullable|string|max:120',
             'site_description' => 'nullable|string|max:2000',
             'site_keywords' => 'nullable|string|max:500',
             'public_site_url' => 'nullable|string|max:255',
@@ -383,5 +394,38 @@ class PlatformSettingController extends Controller
             'rabbitmq_laravel_package_installed' => $rabbitPackage,
             'hint' => 'Para colas en segundo plano: QUEUE_CONNECTION=database (y php artisan queue:work). RabbitMQ requiere paquete y variables RABBITMQ_* en .env.',
         ];
+    }
+
+    /**
+     * Ruta relativa /storage/... para evitar URLs http:// guardadas con APP_URL incorrecto detrás de proxy HTTPS.
+     */
+    private function publicStorageUrl(string $path): string
+    {
+        $normalized = ltrim(str_replace('\\', '/', $path), '/');
+
+        return '/storage/' . $normalized;
+    }
+
+    private function deleteBrandFileIfStored(?string $storedUrl): void
+    {
+        $storedUrl = trim((string) $storedUrl);
+        if ($storedUrl === '') {
+            return;
+        }
+
+        $relative = null;
+        if (str_starts_with($storedUrl, '/storage/')) {
+            $relative = substr($storedUrl, strlen('/storage/'));
+        } elseif (preg_match('#/storage/(.+)$#', $storedUrl, $matches)) {
+            $relative = $matches[1];
+        }
+
+        if ($relative === null || $relative === '') {
+            return;
+        }
+
+        if (Storage::disk('public')->exists($relative)) {
+            Storage::disk('public')->delete($relative);
+        }
     }
 }
