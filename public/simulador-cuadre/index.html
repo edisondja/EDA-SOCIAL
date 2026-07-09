@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Simulador de Cuadre · CXC / Ajustes / Remesas</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="bg-grid" aria-hidden="true"></div>
+
+  <header class="top">
+    <div class="brand">
+      <span class="brand-mark">CQ</span>
+      <div>
+        <h1>Simulador de Cuadre</h1>
+        <p class="tagline">CXC_PES · TAJUSTE · TAJUDET · Remesas</p>
+      </div>
+    </div>
+    <div class="top-actions">
+      <button type="button" class="btn ghost" id="btnReset" title="Restaurar escenario base">Reset</button>
+      <button type="button" class="btn ghost" id="btnExport">Exportar JSON</button>
+      <label class="btn ghost file-btn">
+        Importar
+        <input type="file" id="fileImport" accept="application/json,.json" hidden />
+      </label>
+    </div>
+  </header>
+
+  <main class="layout">
+    <aside class="panel status-panel">
+      <h2>Estado del cuadre</h2>
+      <div id="statusCards" class="status-cards"></div>
+
+      <section class="formula-box">
+        <h3>Reglas aplicadas</h3>
+        <ol>
+          <li><code>Σ TAJUDET.PTIMPORT</code> → <code>TAJUSTE.PTIMPORT</code></li>
+          <li><code>TAJUSTE.PTIMPORT</code> → <code>CXC_PES.PTIMPORT2</code></li>
+          <li><code>FACTURA = VAL_NET − DES_NET + IMPT_NET</code></li>
+          <li><code>BALANCE = FACTURA − PTIMPORT2</code></li>
+          <li>Remesa enlazada por <code>NMCUOREC = FACTURA</code></li>
+        </ol>
+      </section>
+
+      <section class="scenario-box">
+        <h3>Auto-cuadrar</h3>
+        <p class="auto-help">Ajusta la línea elegida para que Σ TAJUDET = objetivo.</p>
+        <div class="auto-form">
+          <label>
+            Objetivo neto
+            <input type="text" id="targetNet" class="cell num" value="(82,745.98)" />
+          </label>
+          <label>
+            Línea a ajustar
+            <select id="targetLine" class="cell"></select>
+          </label>
+          <button type="button" class="btn" id="btnCuadrar" style="width:100%;margin-top:0.4rem">
+            Cuadrar ahora
+          </button>
+        </div>
+      </section>
+
+      <section class="scenario-box">
+        <h3>Escenarios</h3>
+        <div class="scenario-list" id="scenarioList"></div>
+      </section>
+    </aside>
+
+    <div class="tables">
+      <!-- CXC_PES -->
+      <section class="table-block" data-table="cxc">
+        <div class="table-head">
+          <h2>CXC_PES <span class="hint">Cuentas por cobrar</span></h2>
+          <span class="link-chip" id="chipFactura">FACTURA →</span>
+        </div>
+        <div class="table-scroll">
+          <table id="tableCxc">
+            <thead>
+              <tr>
+                <th>FACTURA</th>
+                <th>CLIENTE</th>
+                <th>COMPANIA</th>
+                <th>RAMO</th>
+                <th>SECUENCIAL</th>
+                <th>FEC_INI</th>
+                <th>FEC_FIN</th>
+                <th class="num">VAL_NET</th>
+                <th class="num">DES_NET</th>
+                <th class="num">IMPT_NET</th>
+                <th class="num">FACTURA $</th>
+                <th class="num">PTIMPORT2</th>
+                <th class="num">BALANCE</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- TAJUSTE -->
+      <section class="table-block" data-table="tajuste">
+        <div class="table-head">
+          <h2>TAJUSTE <span class="hint">Cabecera de ajuste</span></h2>
+          <span class="link-chip muted" id="chipAjuste">NMAJUSTE →</span>
+        </div>
+        <div class="table-scroll">
+          <table id="tableTajuste">
+            <thead>
+              <tr>
+                <th>NMAJUSTE</th>
+                <th>CLIENTE</th>
+                <th>COMPANIA</th>
+                <th>RAMO</th>
+                <th>SECUENCIAL</th>
+                <th>TIP_DOC</th>
+                <th>NMDOCUM</th>
+                <th>NMCUOREC</th>
+                <th class="num">PTIMPORT</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- TAJUDET -->
+      <section class="table-block" data-table="tajudet">
+        <div class="table-head">
+          <h2>TAJUDET <span class="hint">Detalle de ajuste (editable)</span></h2>
+          <button type="button" class="btn small" id="btnAddDet">+ Línea</button>
+        </div>
+        <div class="table-scroll">
+          <table id="tableTajudet">
+            <thead>
+              <tr>
+                <th>NMAJUDET</th>
+                <th>NMAJUSTE</th>
+                <th>COMPANIA</th>
+                <th>RAMO</th>
+                <th>SECUENCIAL</th>
+                <th>TIPO_MOV</th>
+                <th>CDTIPDOC</th>
+                <th>TIPO_ASE</th>
+                <th>ASEGURADO</th>
+                <th>DEPENDIENTE</th>
+                <th class="num">PTIMPORT</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+            <tfoot>
+              <tr>
+                <td colspan="10" class="foot-label">Σ PTIMPORT (neto del ajuste)</td>
+                <td class="num" id="sumTajudet">—</td>
+                <td></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </section>
+
+      <!-- REMESAS -->
+      <section class="table-block" data-table="remesa">
+        <div class="table-head">
+          <h2>TABLAS DE REMESAS <span class="hint">Pago / remesa</span></h2>
+        </div>
+        <div class="table-scroll">
+          <table id="tableRemesa">
+            <thead>
+              <tr>
+                <th>CDPERSON</th>
+                <th>CDUNIECO</th>
+                <th>CDRAMO</th>
+                <th>NMPOLFIN</th>
+                <th>NMCUOREC</th>
+                <th>FOR_PAG</th>
+                <th class="num">PRIMPORT</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="flow-block">
+        <h2>Flujo de impacto</h2>
+        <div class="flow" id="flowViz" aria-live="polite"></div>
+      </section>
+    </div>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
