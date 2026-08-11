@@ -1,0 +1,32 @@
+Instrucciones — Carga XLS a MEDIPROCESOS_HN (Oracle Forms 12c)
+================================================================
+
+Archivos
+--------
+- cargar_xls_mediprocesos_hn.pls
+    Contiene FUNCTION get_cell_value y PROCEDURE cargar_xls_mediprocesos_hn.
+    Crear ambos como Program Units en el form (copiar cada bloque por separado).
+
+- when_button_pressed_btn_cargar_xls.pls
+    Código del trigger WHEN-BUTTON-PRESSED de un botón (ej. BTN_CARGAR_XLS).
+
+- plantilla_mediprocesos_hn.tsv
+    Encabezados + 2 filas de ejemplo. Abrir en Excel y guardar como .xls o .xlsx.
+
+Pasos en Forms Builder
+----------------------
+1. Adjuntar WebUtil al form (webutil.olb + WEBUTIL.PLL) si aún no está.
+2. Program Units → New → Function  GET_CELL_VALUE  (pegar la function del .pls).
+3. Program Units → New → Procedure CARGAR_XLS_MEDIPROCESOS_HN (pegar el procedure).
+4. Crear botón en el canvas, trigger WHEN-BUTTON-PRESSED con el contenido del
+   archivo when_button_pressed_btn_cargar_xls.pls.
+5. Compilar (Ctrl+T) y generar el .fmx.
+6. En runtime: el cliente debe tener Microsoft Excel instalado.
+
+Notas
+-----
+- La carga escribe en el bloque MEDIPROCESOS_HN (CREATE_RECORD por fila).
+- No hace COMMIT; el usuario guarda con el proceso normal del form.
+- Si ANO / SECUENCIAL / montos son NUMBER y falla la asignación, revise el
+  formato en Excel (sin texto, sin símbolos de moneda).
+- Columnas A–K deben coincidir con el orden documentado en el .pls.
