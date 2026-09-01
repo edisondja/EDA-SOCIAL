@@ -22,6 +22,12 @@ llamar **después** de insertar/cargar la reclamación.
 Si son items de tabla, asignarlos en POST-QUERY marca el registro como
 cambiado y Forms pedirá guardar filas que no se editaron.
 
+## FRM-41048 You cannot create records here
+
+El loop del boton de cambio masivo no puede hacer `NEXT_RECORD` en la
+ultima fila (eso intenta crear registro). Ver `CAMBIO_MASIVO_FORMA_PAGO.sql`.
+Tampoco usar `COMMIT_FORM` ni `GO_BLOCK` al log vacio.
+
 ## FRM-41050 You cannot update this record
 
 No usar `:BLOQUE.ITEM := valor` en POST-QUERY si la fila tiene
