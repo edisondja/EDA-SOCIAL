@@ -21,3 +21,9 @@ llamar **después** de insertar/cargar la reclamación.
 `ESTATUS_RECLAMACION_DESC` y `FORMA_PAGO` deben ser **Database Item = No**.
 Si son items de tabla, asignarlos en POST-QUERY marca el registro como
 cambiado y Forms pedirá guardar filas que no se editaron.
+
+## FRM-41050 You cannot update this record
+
+No usar `:BLOQUE.ITEM := valor` en POST-QUERY si la fila tiene
+Update Allowed = No. Llenar con `COPY` y dejar el registro en
+`QUERY_STATUS` (ver `POST_QUERY_INLINE.sql`).
